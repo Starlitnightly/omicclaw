@@ -126,5 +126,5 @@ if 'survial_init' not in dir(aml_tcga) or aml_tcga.adata.obs.shape[1] < 5:
 - "Run survival analysis for all genes and store the enriched dataset."
 
 ## References
-- Tutorial notebook: `t_tcga.ipynb`
+- Tutorial page: [`t_tcga`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_tcga/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

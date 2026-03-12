@@ -7,14 +7,14 @@ description: "CellPhoneDB v5 ligand-receptor analysis, cell-cell communication n
 # Single-cell CellPhoneDB communication mapping
 
 ## Overview
-Apply this skill when a user wants to quantify ligand–receptor communication between annotated single-cell populations and display the networks with `CellChatViz`. It distils the workflow from [`t_cellphonedb.ipynb`](../../omicverse_guide/docs/Tutorials-single/t_cellphonedb.ipynb), which analyses EVT trophoblast data.
+Apply this skill when a user wants to quantify ligand–receptor communication between annotated single-cell populations and display the networks with `CellChatViz`. It distils the workflow from [`t_cellphonedb.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_cellphonedb/), which analyses EVT trophoblast data.
 
 ## Instructions
 1. **Prepare the environment**
    - Use an environment with `omicverse>=0.2`, `scanpy`, `anndata`, `pandas`, `matplotlib`, and `cellphonedb` resources. The tutorial assumes the pre-built CellPhoneDB v5 SQLite bundle downloaded as `cellphonedb.zip` in the working directory.
    - Activate omicverse plotting defaults via `ov.plot_set()` so that downstream figures follow the project palette.
 2. **Load and subset the annotated AnnData object**
-   - Read the normalised counts with `adata = ov.read('data/cpdb/normalised_log_counts.h5ad')`.
+   - Load a local AnnData export prepared from the tutorial inputs; the public tutorial page documents the example CellPhoneDB dataset and expected preprocessing before running `adata = ov.read(...)`.
    - Filter to the cell populations of interest using `adata.obs['cell_labels']` (e.g., EVT, dNK, VCT). Ensure `adata.obs['cell_labels']` is categorical and free of missing values so CellPhoneDB groups cells correctly.
    - Confirm values are log-normalised (`adata.X.max()` should be <10 and non-integer); raw counts inflate CellPhoneDB permutations.
 3. **Run CellPhoneDB via omicverse**
@@ -73,6 +73,6 @@ Apply this skill when a user wants to quantify ligand–receptor communication b
 - "Generate outgoing versus incoming communication circles to compare dNK subsets."
 
 ## References
-- Tutorial notebook: [`t_cellphonedb.ipynb`](../../omicverse_guide/docs/Tutorials-single/t_cellphonedb.ipynb)
-- Example data: [`omicverse_guide/docs/Tutorials-single/data/cpdb/`](../../omicverse_guide/docs/Tutorials-single/data/cpdb/)
+- Tutorial notebook: [`t_cellphonedb.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_cellphonedb/)
+- Example data: see the tutorial page for example CellPhoneDB inputs: [t_cellphonedb](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_cellphonedb/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

@@ -7,7 +7,7 @@ description: "Single-cell clustering (Leiden, Louvain, scICE, GMM), batch correc
 # Single-cell clustering and batch correction with omicverse
 
 ## Overview
-This skill distills the single-cell tutorials [`t_cluster.ipynb`](../../omicverse_guide/docs/Tutorials-single/t_cluster.ipynb) and [`t_single_batch.ipynb`](../../omicverse_guide/docs/Tutorials-single/t_single_batch.ipynb). Use it when a user wants to preprocess an `AnnData` object, explore clustering alternatives (Leiden, Louvain, scICE, GMM, topic/cNMF models), and evaluate or harmonise batches with omicverse utilities.
+This skill distills the single-cell tutorials [`t_cluster.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_cluster/) and [`t_single_batch.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_single_batch/). Use it when a user wants to preprocess an `AnnData` object, explore clustering alternatives (Leiden, Louvain, scICE, GMM, topic/cNMF models), and evaluate or harmonise batches with omicverse utilities.
 
 ## Instructions
 1. **Import libraries and set plotting defaults**
@@ -70,6 +70,6 @@ This skill distills the single-cell tutorials [`t_cluster.ipynb`](../../omicvers
 - "Fit topic and cNMF models on a preprocessed AnnData object, retrieve classifier-refined cluster calls, and visualise the resulting programs on UMAP."
 
 ## References
-- Clustering walkthrough: [`t_cluster.ipynb`](../../omicverse_guide/docs/Tutorials-single/t_cluster.ipynb)
-- Batch integration walkthrough: [`t_single_batch.ipynb`](../../omicverse_guide/docs/Tutorials-single/t_single_batch.ipynb)
+- Clustering walkthrough: [`t_cluster.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_cluster/)
+- Batch integration walkthrough: [`t_single_batch.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_single_batch/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

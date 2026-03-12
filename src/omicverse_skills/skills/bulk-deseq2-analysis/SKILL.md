@@ -7,7 +7,7 @@ description: "PyDESeq2 differential expression: ID mapping, DE testing, fold-cha
 # Bulk RNA-seq DESeq2 analysis with omicverse
 
 ## Overview
-Use this skill when a user wants to reproduce the DESeq2 workflow showcased in [`t_deseq2.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_deseq2.ipynb). It covers loading raw featureCounts matrices, mapping Ensembl IDs to symbols, running PyDESeq2 via `ov.bulk.pyDEG`, and exploring downstream enrichment plots.
+Use this skill when a user wants to reproduce the DESeq2 workflow showcased in [`t_deseq2.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_deseq2/). It covers loading raw featureCounts matrices, mapping Ensembl IDs to symbols, running PyDESeq2 via `ov.bulk.pyDEG`, and exploring downstream enrichment plots.
 
 ## Instructions
 1. **Import and format the expression matrix**
@@ -59,6 +59,6 @@ Use this skill when a user wants to reproduce the DESeq2 workflow showcased in [
 - "Generate the ranked gene list for GSEA and plot the enrichment curve for the top pathway."
 
 ## References
-- Tutorial notebook: [`t_deseq2.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_deseq2.ipynb)
-- Sample featureCounts matrix: [`sample/counts.txt`](../../sample/counts.txt)
+- Tutorial notebook: [`t_deseq2.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_deseq2/)
+- Sample featureCounts matrix: see the tutorial page for example count inputs: [t_deseq2](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_deseq2/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

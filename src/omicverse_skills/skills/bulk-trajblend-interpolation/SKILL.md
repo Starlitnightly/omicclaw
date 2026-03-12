@@ -7,7 +7,7 @@ description: Extend scRNA-seq developmental trajectories with BulkTrajBlend by g
 # BulkTrajBlend trajectory interpolation
 
 ## Overview
-Invoke this skill when users need to bridge gaps in single-cell developmental trajectories using matched bulk RNA-seq. It follows [`t_bulktrajblend.ipynb`](../../omicverse_guide/docs/Tutorials-bulk2single/t_bulktrajblend.ipynb), showcasing how BulkTrajBlend deconvolves PDAC bulk samples, identifies overlapping communities with a GNN, and interpolates "interrupted" cell states.
+Invoke this skill when users need to bridge gaps in single-cell developmental trajectories using matched bulk RNA-seq. It follows [`t_bulktrajblend.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_bulktrajblend/), showcasing how BulkTrajBlend deconvolves PDAC bulk samples, identifies overlapping communities with a GNN, and interpolates "interrupted" cell states.
 
 ## Instructions
 1. **Prepare libraries and inputs**
@@ -58,6 +58,6 @@ Invoke this skill when users need to bridge gaps in single-cell developmental tr
 - "Run VIA on interpolated cells and compare PAGA graphs with the original scRNA-seq trajectory."
 
 ## References
-- Tutorial notebook: [`t_bulktrajblend.ipynb`](../../omicverse_guide/docs/Tutorials-bulk2single/t_bulktrajblend.ipynb)
-- Example datasets and checkpoints: [`omicverse_guide/docs/Tutorials-bulk2single/data/`](../../omicverse_guide/docs/Tutorials-bulk2single/data/)
+- Tutorial notebook: [`t_bulktrajblend.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_bulktrajblend/)
+- Example datasets and checkpoints: see the tutorial page for linked datasets and checkpoints: [t_bulktrajblend](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_bulktrajblend/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

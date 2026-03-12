@@ -7,7 +7,7 @@ description: Map scRNA-seq atlases onto spatial transcriptomics slides using omi
 # Single2Spatial spatial mapping
 
 ## Overview
-Apply this skill when converting single-cell references into spatially resolved profiles. It follows [`t_single2spatial.ipynb`](../../omicverse_guide/docs/Tutorials-bulk2single/t_single2spatial.ipynb), demonstrating how Single2Spatial trains on PDAC scRNA-seq and Visium data, reconstructs spot-level proportions, and visualises marker expression.
+Apply this skill when converting single-cell references into spatially resolved profiles. It follows [`t_single2spatial.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_single2spatial/), demonstrating how Single2Spatial trains on PDAC scRNA-seq and Visium data, reconstructs spot-level proportions, and visualises marker expression.
 
 ## Instructions
 1. **Import dependencies and style**
@@ -54,6 +54,6 @@ Apply this skill when converting single-cell references into spatially resolved 
 - "Plot reconstructed cell-type maps with omicverse palettes to compare against histology."
 
 ## References
-- Tutorial notebook: [`t_single2spatial.ipynb`](../../omicverse_guide/docs/Tutorials-bulk2single/t_single2spatial.ipynb)
-- Example datasets and models: [`omicverse_guide/docs/Tutorials-bulk2single/data/pdac/`](../../omicverse_guide/docs/Tutorials-bulk2single/data/pdac/)
+- Tutorial notebook: [`t_single2spatial.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_single2spatial/)
+- Example datasets and models: see the tutorial page for linked PDAC datasets and pretrained models: [t_single2spatial](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_single2spatial/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

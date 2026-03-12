@@ -8,7 +8,7 @@ description: "Bulk RNA-seq batch correction with pyComBat: remove batch effects 
 
 ## Overview
 Apply this skill when a user has multiple bulk expression matrices measured across different batches and needs to harmonise them
- before downstream analysis. It follows [`t_bulk_combat.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_bulk_combat.ipynb), w
+ before downstream analysis. It follows [`t_bulk_combat.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_bulk_combat/), w
 hich demonstrates the pyComBat workflow on ovarian cancer microarray cohorts.
 
 ## Instructions
@@ -59,6 +59,6 @@ tenation.
 - "Save the harmonised AnnData file so I can reload it later for downstream DEG analysis."
 
 ## References
-- Tutorial notebook: [`t_bulk_combat.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_bulk_combat.ipynb)
-- Example inputs: [`omicverse_guide/docs/Tutorials-bulk/data/combat/`](../../omicverse_guide/docs/Tutorials-bulk/data/combat/)
+- Tutorial notebook: [`t_bulk_combat.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_bulk_combat/)
+- Example inputs: see the tutorial page for example batch-correction inputs: [t_bulk_combat](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_bulk_combat/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

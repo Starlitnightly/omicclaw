@@ -8,9 +8,9 @@ description: "OmicVerse plotting: volcano, venn, boxplot, embedding, density, do
 
 ## Overview
 Leverage this skill when a user wants help recreating or adapting plots from the OmicVerse plotting tutorials:
-- [`t_visualize_bulk.ipynb`](../../omicverse_guide/docs/Tutorials-plotting/t_visualize_bulk.ipynb)
-- [`t_visualize_colorsystem.ipynb`](../../omicverse_guide/docs/Tutorials-plotting/t_visualize_colorsystem.ipynb)
-- [`t_visualize_single.ipynb`](../../omicverse_guide/docs/Tutorials-plotting/t_visualize_single.ipynb)
+- [`t_visualize_bulk.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-plotting/t_visualize_bulk/)
+- [`t_visualize_colorsystem.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-plotting/t_visualize_colorsystem/)
+- [`t_visualize_single.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-plotting/t_visualize_single/)
 
 It covers how to configure OmicVerse's plotting style, choose colors from the Forbidden City palette, and generate bulk as well as single-cell specific figures.
 
@@ -66,7 +66,7 @@ It covers how to configure OmicVerse's plotting style, choose colors from the Fo
 - "Generate single-cell proportion bar/area plots plus gene-density overlays using OmicVerse helper functions."
 
 ## References
-- Bulk tutorial: [`t_visualize_bulk.ipynb`](../../omicverse_guide/docs/Tutorials-plotting/t_visualize_bulk.ipynb)
-- Color system tutorial: [`t_visualize_colorsystem.ipynb`](../../omicverse_guide/docs/Tutorials-plotting/t_visualize_colorsystem.ipynb)
-- Single-cell tutorial: [`t_visualize_single.ipynb`](../../omicverse_guide/docs/Tutorials-plotting/t_visualize_single.ipynb)
+- Bulk tutorial: [`t_visualize_bulk.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-plotting/t_visualize_bulk/)
+- Color system tutorial: [`t_visualize_colorsystem.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-plotting/t_visualize_colorsystem/)
+- Single-cell tutorial: [`t_visualize_single.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-plotting/t_visualize_single/)
 - Quick reference snippets: [`reference.md`](reference.md)

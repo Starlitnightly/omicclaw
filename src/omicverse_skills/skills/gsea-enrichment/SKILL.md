@@ -146,6 +146,6 @@ After running `ov.utils.download_pathway_database()`:
 - "Compare GO BP, MF, and KEGG enrichment results using geneset_plot_multi"
 
 ## References
-- Tutorial notebook: [`t_deg.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_deg.ipynb) (enrichment section)
+- Tutorial notebook: [`t_deg.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_deg/) (enrichment section)
 - Pathway download: `ov.utils.download_pathway_database()`
 - Quick reference: [`reference.md`](reference.md)

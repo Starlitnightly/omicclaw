@@ -7,7 +7,7 @@ description: Turn bulk RNA-seq cohorts into synthetic single-cell datasets using
 # Bulk RNA-seq deconvolution with Bulk2Single
 
 ## Overview
-Use this skill when a user wants to reconstruct single-cell profiles from bulk RNA-seq together with a matched reference scRNA-seq atlas. It follows [`t_bulk2single.ipynb`](../../omicverse_guide/docs/Tutorials-bulk2single/t_bulk2single.ipynb), which demonstrates how to harmonise PDAC bulk replicates, train the beta-VAE generator, and benchmark the output cells against dentate gyrus scRNA-seq.
+Use this skill when a user wants to reconstruct single-cell profiles from bulk RNA-seq together with a matched reference scRNA-seq atlas. It follows [`t_bulk2single.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_bulk2single/), which demonstrates how to harmonise PDAC bulk replicates, train the beta-VAE generator, and benchmark the output cells against dentate gyrus scRNA-seq.
 
 ## Instructions
 1. **Load libraries and data**
@@ -56,6 +56,6 @@ Use this skill when a user wants to reconstruct single-cell profiles from bulk R
 - "Plot correlation heatmaps between generated cells and reference clusters after filtering noisy synthetic cells."
 
 ## References
-- Tutorial notebook: [`t_bulk2single.ipynb`](../../omicverse_guide/docs/Tutorials-bulk2single/t_bulk2single.ipynb)
-- Example data and weights: [`omicverse_guide/docs/Tutorials-bulk2single/data/`](../../omicverse_guide/docs/Tutorials-bulk2single/data/)
+- Tutorial notebook: [`t_bulk2single.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_bulk2single/)
+- Example data and weights: see the tutorial page for linked datasets and checkpoints: [t_bulk2single](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk2single/t_bulk2single/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

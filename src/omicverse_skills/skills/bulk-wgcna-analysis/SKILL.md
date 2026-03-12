@@ -7,7 +7,7 @@ description: "WGCNA co-expression network: soft-threshold, module detection, eig
 # Bulk WGCNA analysis with omicverse
 
 ## Overview
-Activate this skill for users who want to reproduce the WGCNA workflow from [`t_wgcna.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_wgcna.ipynb). It guides you through loading expression data, configuring PyWGCNA, constructing weighted gene co-expression networks, and inspecting modules of interest.
+Activate this skill for users who want to reproduce the WGCNA workflow from [`t_wgcna.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_wgcna/). It guides you through loading expression data, configuring PyWGCNA, constructing weighted gene co-expression networks, and inspecting modules of interest.
 
 ## Instructions
 1. **Prepare the environment**
@@ -60,6 +60,6 @@ Activate this skill for users who want to reproduce the WGCNA workflow from [`t_
 - "Create a sub-network plot for the gold module using a correlation threshold of 0.2."
 
 ## References
-- Tutorial notebook: [`t_wgcna.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_wgcna.ipynb)
-- Tutorial dataset: [`data/5xFAD_paper/`](../../omicverse_guide/docs/Tutorials-bulk/data/5xFAD_paper/)
+- Tutorial notebook: [`t_wgcna.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_wgcna/)
+- Tutorial dataset: see the tutorial page for the linked 5xFAD example data: [t_wgcna](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_wgcna/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

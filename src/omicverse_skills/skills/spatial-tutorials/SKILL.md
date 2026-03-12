@@ -93,6 +93,8 @@ Note: For cell2location, the `method` parameter is set at initialization, not at
 
 ### Starfysh Archetypal Deconvolution
 
+Treat the file names below as placeholders for your own local exports; the matching public spatial tutorials describe the expected AnnData counts matrix and signature table formats.
+
 ```python
 from omicverse.external.starfysh import AA, utils, plot_utils
 

@@ -7,14 +7,14 @@ description: "Single-cell QC, normalization, HVG detection, PCA, neighbor graph,
 # Single-cell preprocessing with omicverse
 
 ## Overview
-Follow this skill when a user needs to reproduce the preprocessing workflow from the omicverse notebooks [`t_preprocess.ipynb`](../../../omicverse_guide/docs/Tutorials-single/t_preprocess.ipynb), [`t_preprocess_cpu.ipynb`](../../../omicverse_guide/docs/Tutorials-single/t_preprocess_cpu.ipynb), and [`t_preprocess_gpu.ipynb`](../../../omicverse_guide/docs/Tutorials-single/t_preprocess_gpu.ipynb). The tutorials operate on the 10x PBMC3k dataset and cover QC filtering, normalisation, highly variable gene (HVG) detection, dimensionality reduction, and downstream embeddings.
+Follow this skill when a user needs to reproduce the preprocessing workflow from the omicverse notebooks [`t_preprocess.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_preprocess/), [`t_preprocess_cpu.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_preprocess_cpu/), and [`t_preprocess_gpu.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_preprocess_gpu/). The tutorials operate on the 10x PBMC3k dataset and cover QC filtering, normalisation, highly variable gene (HVG) detection, dimensionality reduction, and downstream embeddings.
 
 ## Instructions
 1. **Set up the environment**
    - Import `omicverse as ov` and `scanpy as sc`, then call `ov.plot_set(font_path='Arial')` (or `ov.ov_plot_set()` in legacy notebooks) to standardise figure styling.
    - Encourage `%load_ext autoreload` and `%autoreload 2` when iterating inside notebooks so code edits propagate without restarting the kernel.
 2. **Prepare input data**
-   - Download the PBMC3k filtered matrix from 10x Genomics (`pbmc3k_filtered_gene_bc_matrices.tar.gz`) and extract it under `data/filtered_gene_bc_matrices/hg19/`.
+   - Download the PBMC3k filtered matrix from 10x Genomics (`pbmc3k_filtered_gene_bc_matrices.tar.gz`) and extract it into a local directory such as `data/filtered_gene_bc_matrices/hg19/`.
    - Load the matrix via `ov.io.read_10x_mtx(..., var_names='gene_symbols')` and keep a writable folder like `write/` for exports.
 3. **Perform quality control (QC)**
    - Run `ov.pp.qc(adata, tresh={'mito_perc': 0.2, 'nUMIs': 500, 'detected_genes': 250}, doublets_method='scrublet')` for the CPU/CPU–GPU pipelines; omit `doublets_method` on pure GPU where Scrublet is not yet supported.
@@ -180,5 +180,5 @@ def safe_highly_variable_genes(adata, batch_key='batch', n_top_genes=2000):
 - "Provision a RAPIDS environment, transfer AnnData to GPU, run `method='cagra'` neighbours, and return embeddings to CPU for plotting."
 
 ## References
-- Detailed walkthrough notebooks: [`t_preprocess.ipynb`](../../../omicverse_guide/docs/Tutorials-single/t_preprocess.ipynb), [`t_preprocess_cpu.ipynb`](../../../omicverse_guide/docs/Tutorials-single/t_preprocess_cpu.ipynb), [`t_preprocess_gpu.ipynb`](../../../omicverse_guide/docs/Tutorials-single/t_preprocess_gpu.ipynb)
+- Detailed walkthrough notebooks: [`t_preprocess.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_preprocess/), [`t_preprocess_cpu.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_preprocess_cpu/), [`t_preprocess_gpu.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-single/t_preprocess_gpu/)
 - Quick copy/paste commands: [`reference.md`](reference.md)

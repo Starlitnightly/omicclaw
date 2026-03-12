@@ -7,7 +7,7 @@ description: "Bulk RNA-seq DEG pipeline: gene ID mapping, DESeq2 normalization, 
 # Bulk RNA-seq differential expression with omicverse
 
 ## Overview
-Follow this skill to run the end-to-end differential expression (DEG) workflow showcased in [`t_deg.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_deg.ipynb). It assumes the user provides a raw gene-level count matrix (e.g., from featureCounts) and wants to analyse bulk RNA-seq cohorts inside omicverse.
+Follow this skill to run the end-to-end differential expression (DEG) workflow showcased in [`t_deg.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_deg/). It assumes the user provides a raw gene-level count matrix (e.g., from featureCounts) and wants to analyse bulk RNA-seq cohorts inside omicverse.
 
 ## Instructions
 1. **Set up the session**
@@ -65,6 +65,6 @@ Follow this skill to run the end-to-end differential expression (DEG) workflow s
 - "Guide me through converting Ensembl IDs to symbols, performing limma DEG, and plotting boxplots for Krtap9-5 and Lef1."
 
 ## References
-- Detailed walkthrough notebook: [`t_deg.ipynb`](../../omicverse_guide/docs/Tutorials-bulk/t_deg.ipynb)
-- Sample count matrix for testing: [`sample/counts.txt`](../../sample/counts.txt)
+- Detailed walkthrough notebook: [`t_deg.ipynb`](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_deg/)
+- Sample count matrix example: see the tutorial page for downloadable example inputs: [t_deg](https://omicverse.readthedocs.io/en/latest/Tutorials-bulk/t_deg/)
 - Quick copy/paste commands: [`reference.md`](reference.md)
