@@ -43,6 +43,7 @@ def apply_config(namespace: dict, mode: str) -> None:
                 ".md": "markdown",
             },
             "master_doc": master_doc,
+            "root_doc": master_doc,
             "pygments_style": "github-dark",
             "pygments_dark_style": "github-dark",
             "html_theme": "sphinx_book_theme",
