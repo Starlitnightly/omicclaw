@@ -1,14 +1,42 @@
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 .DS_Store
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage
+.coverage.*
+.pyre/
+.hypothesis/
+.ipynb_checkpoints/
+.python-version
+.env
+.env.*
 build/
 dist/
 *.egg-info/
 .venv/
+.venv-docs/
+venv/
+env/
+ENV/
+htmlcov/
+coverage/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Docs build artifacts
 docs/_build/
+docs/source/_build/
+docs/source/.jupyter_cache/
+*.doctree
+.doctrees/
 site/
+
+# Local runtime / generated assets
+temp/
+data/

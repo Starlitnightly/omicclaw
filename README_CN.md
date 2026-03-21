@@ -14,11 +14,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green" alt="GPL-3.0"></a>
 </p>
 
-> 英文文档见 [README.md](README.md)。
->
-> 图文教程索引：
-> [English walkthrough](TUTORIAL.md) |
-> [中文图文教程](TUTORIAL_CN.md)
+> 文档入口：
+> [English docs](https://omicclaw.readthedocs.io/en/) |
+> [中文文档](https://omicclaw.readthedocs.io/zh-cn/)
 
 ---
 
@@ -26,7 +24,7 @@
 
 这个仓库现在就是 **OmicClaw 的独立 Web / Gateway 应用**。
 
-如果你想看原来那套带截图的操作教程，请直接使用上面的图文教程索引，而不是把这份 README 当作步骤手册。
+如果你想看完整产品文档，请直接使用上面的 Read the Docs 链接，而不是把这份 README 当作步骤手册。
 
 历史上它以 `omicverse-web` / `omicverseweb` 的名字发布，这两个名字目前仍然保留在仓库名和包名层面，用于兼容已有安装方式；但从产品定位上，它已经不是单纯的 “OmicVerse Web 教程页面”，而是 **OmicClaw 本体的 Web 入口**。
 

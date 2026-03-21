@@ -14,11 +14,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green" alt="GPL-3.0"></a>
 </p>
 
-> For Chinese documentation, see [README_CN.md](README_CN.md).
->
-> Illustrated tutorials:
-> [English walkthrough](TUTORIAL.md) |
-> [中文图文教程](TUTORIAL_CN.md)
+> Documentation:
+> [English docs](https://omicclaw.readthedocs.io/en/) |
+> [中文文档](https://omicclaw.readthedocs.io/zh-cn/)
 
 ---
 
@@ -26,7 +24,7 @@
 
 This repository is now the standalone web and gateway application behind **OmicClaw**.
 
-If you want the original screenshot-driven walkthrough of the analysis interface, use the tutorial index above instead of this README.
+If you want the full product walkthrough, use the Read the Docs links above instead of treating this README as an operations manual.
 
 Historically it was published as `omicverse-web` / `omicverseweb`. Those names still exist at the repository and package level for compatibility, but the product surface has been fully repositioned as **OmicClaw**.
 
