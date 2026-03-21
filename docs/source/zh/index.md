@@ -123,18 +123,9 @@ orphan: true
 ```{toctree}
 :hidden:
 :maxdepth: 2
-:caption: 中文文档
 
 getting-started/index
-getting-started/installation
-getting-started/quickstart
 interfaces/index
-interfaces/workspace
-interfaces/setup-auth
-interfaces/launch-modes
 reference/index
-reference/maintenance
-reference/omicverse-docs-checklist
 archive/index
-archive/old-readme
 ```

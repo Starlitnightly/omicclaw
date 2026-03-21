@@ -123,18 +123,9 @@ Legacy material preserved for migration context and historical reference.
 ```{toctree}
 :hidden:
 :maxdepth: 2
-:caption: English Docs
 
 getting-started/index
-getting-started/installation
-getting-started/quickstart
 interfaces/index
-interfaces/workspace
-interfaces/setup-auth
-interfaces/launch-modes
 reference/index
-reference/maintenance
-reference/omicverse-docs-checklist
 archive/index
-archive/old-readme
 ```
