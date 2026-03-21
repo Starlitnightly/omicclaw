@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # OmicClaw
 
 ```{image} ../_static/logo.png
