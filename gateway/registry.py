@@ -22,7 +22,7 @@ import logging
 import threading
 from typing import Optional
 
-logger = logging.getLogger("omicverse_web.gateway.registry")
+logger = logging.getLogger("omicclaw.gateway.registry")
 
 
 def _stable_uid(channel: str, scope_type: str, scope_id: str) -> str:

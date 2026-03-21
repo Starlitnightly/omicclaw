@@ -5,7 +5,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const BASE = '/Users/fernandozeng/Desktop/analysis/omicverse/omicverse_web/static/js';
+const BASE = '/Users/fernandozeng/Desktop/analysis/omicverse-project/omicclaw/static/js';
 
 // Browser stubs so the class body can be evaluated without errors
 const PREAMBLE = `

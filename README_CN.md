@@ -26,7 +26,7 @@
 
 如果你想看完整产品文档，请直接使用上面的 Read the Docs 链接，而不是把这份 README 当作步骤手册。
 
-历史上它以 `omicverse-web` / `omicverseweb` 的名字发布，这两个名字目前仍然保留在仓库名和包名层面，用于兼容已有安装方式；但从产品定位上，它已经不是单纯的 “OmicVerse Web 教程页面”，而是 **OmicClaw 本体的 Web 入口**。
+这个仓库现在直接以 **OmicClaw** 的名字发布和安装。
 
 这个仓库现在主要负责：
 
@@ -81,24 +81,22 @@ OmicVerse 原有的分析能力仍然保留，包括：
 将 OmicVerse 运行时与 Web 应用一起安装：
 
 ```bash
-pip install -U "omicverse[jarvis]" omicverseweb
+pip install -U "omicverse[jarvis]" omicclaw
 ```
 
 ### 从源码安装
 
 ```bash
-git clone https://github.com/Starlitnightly/omicverse-web.git
-cd omicverse-web
+git clone https://github.com/Starlitnightly/omicclaw.git
+cd omicclaw
 pip install -e .
 ```
 
-目前兼容层名称仍然是：
+当前名称为：
 
-- GitHub 仓库：`omicverse-web`
-- PyPI 包：`omicverseweb`
-- Python 包：`omicverse_web`
-
-但面对用户时，产品名称应理解为 **OmicClaw**。
+- GitHub 仓库：`omicclaw`
+- PyPI 包：`omicclaw`
+- Python 包：`omicclaw`
 
 ---
 
@@ -125,7 +123,7 @@ omicverse gateway
 ### 本仓库自带的独立 Web 启动器
 
 ```bash
-omicverse-web
+omicclaw
 ```
 
 当你直接开发这个仓库，或者只安装了独立 web 包时，可以用这个命令启动。
@@ -140,7 +138,7 @@ omicverse-web
 | --- | --- |
 | `omicverse` | 分析引擎、CLI 入口、channel runtime 集成 |
 | `omicclaw` | skill 库、agent workflow grounding、代码生成支撑 |
-| `omicverse-web` | OmicClaw 的 Web UI、gateway backend、账号流程、浏览器工作区 |
+| `omicclaw` | OmicClaw 的 Web UI、gateway backend、账号流程、浏览器工作区 |
 
 所以这个仓库应当被理解为 **OmicClaw 的 UI 与 gateway runtime 仓库**。
 
@@ -152,7 +150,7 @@ omicverse-web
 
 ```bash
 pip install -e .
-omicverse-web --help
+omicclaw --help
 ```
 
 如果你要验证完整的 OmicClaw 产品链路，建议配合主仓库后，通过以下入口启动：
@@ -195,4 +193,4 @@ omicverse gateway
 
 ## 当前定位
 
-这个仓库现在应该被直接视为 **OmicClaw 的 Web 应用仓库**，只是出于兼容性，包名仍然保留为 `omicverseweb`。
+这个仓库现在应该被直接视为 **OmicClaw 的 Web 应用仓库**。

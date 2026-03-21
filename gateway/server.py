@@ -22,7 +22,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple
 
-logger = logging.getLogger("omicverse_web.gateway.server")
+logger = logging.getLogger("omicclaw.gateway.server")
 _SHUTDOWN_HOOKS_REGISTERED = False
 _INPROCESS_CHANNEL_MANAGER = None
 
@@ -120,7 +120,7 @@ class GatewayServer:
     ----------
     web_root:
         Directory that contains ``app.py``.  Defaults to the parent of this
-        file (i.e. the omicverse-web project root).
+        file (i.e. the omicclaw project root).
     """
 
     def __init__(self, web_root: Optional[str] = None):

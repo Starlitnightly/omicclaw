@@ -18,7 +18,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-logger = logging.getLogger("omicverse_web.agent_session")
+logger = logging.getLogger("omicclaw.agent_session")
 
 # ---------------------------------------------------------------------------
 # Configuration (from environment)

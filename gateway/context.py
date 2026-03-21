@@ -25,7 +25,7 @@ import time
 import uuid
 from typing import Any, Optional
 
-logger = logging.getLogger("omicverse_web.gateway.context")
+logger = logging.getLogger("omicclaw.gateway.context")
 
 
 class ChannelContextBridge:

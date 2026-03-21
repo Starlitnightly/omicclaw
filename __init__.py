@@ -1,1 +1,1 @@
-"""OmicVerse web launcher package."""
+"""OmicClaw package."""

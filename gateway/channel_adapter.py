@@ -38,7 +38,7 @@ Usage (from a bot handler, after analysis is complete)::
 import logging
 from typing import Any, Optional
 
-logger = logging.getLogger("omicverse_web.gateway.channel_adapter")
+logger = logging.getLogger("omicclaw.gateway.channel_adapter")
 
 
 class WebChannelAdapter:

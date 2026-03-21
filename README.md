@@ -26,7 +26,7 @@ This repository is now the standalone web and gateway application behind **OmicC
 
 If you want the full product walkthrough, use the Read the Docs links above instead of treating this README as an operations manual.
 
-Historically it was published as `omicverse-web` / `omicverseweb`. Those names still exist at the repository and package level for compatibility, but the product surface has been fully repositioned as **OmicClaw**.
+This repository is published and installed as **OmicClaw**.
 
 In practice, this repo is the part of OmicClaw that provides:
 
@@ -81,24 +81,22 @@ The difference is that this analysis interface now lives inside the broader **Om
 Install the OmicVerse runtime together with the web application:
 
 ```bash
-pip install -U "omicverse[jarvis]" omicverseweb
+pip install -U "omicverse[jarvis]" omicclaw
 ```
 
 ### Install from source
 
 ```bash
-git clone https://github.com/Starlitnightly/omicverse-web.git
-cd omicverse-web
+git clone https://github.com/Starlitnightly/omicclaw.git
+cd omicclaw
 pip install -e .
 ```
 
-The package and repository names remain:
+Current names:
 
-- GitHub repository: `omicverse-web`
-- PyPI package: `omicverseweb`
-- Python package: `omicverse_web`
-
-The product name presented to users is **OmicClaw**.
+- GitHub repository: `omicclaw`
+- PyPI package: `omicclaw`
+- Python package: `omicclaw`
 
 ---
 
@@ -125,7 +123,7 @@ Use this when you want the same runtime without the OmicClaw-branded launcher na
 ### Standalone web launcher from this repository
 
 ```bash
-omicverse-web
+omicclaw
 ```
 
 Use this when you are working directly with the standalone web package or developing the gateway UI itself.
@@ -140,7 +138,7 @@ The current OmicClaw stack is split across three layers:
 | --- | --- |
 | `omicverse` | analysis engine, CLI entrypoints, channel runtime integration |
 | `omicclaw` | skill library and workflow grounding for agent/code generation |
-| `omicverse-web` | OmicClaw web UI, gateway backend, account flows, browser workspace |
+| `omicclaw` | OmicClaw web UI, gateway backend, account flows, browser workspace |
 
 This repository should therefore be read as the **UI and gateway runtime** part of OmicClaw.
 
@@ -152,7 +150,7 @@ Useful commands when working on this repository:
 
 ```bash
 pip install -e .
-omicverse-web --help
+omicclaw --help
 ```
 
 If you are validating the full OmicClaw product flow, pair this repository with the main OmicVerse repo and launch through:
@@ -195,4 +193,4 @@ Key areas:
 
 ## Status
 
-This repository should now be treated as **OmicClaw's web application**, even though the compatibility package name remains `omicverseweb`.
+This repository should now be treated as **OmicClaw's web application**.

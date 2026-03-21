@@ -22,7 +22,7 @@ from omicverse.utils.harness.trace_store import RunTraceStore
 from .agent_session_service import ApprovalRequest, QuestionRequest, session_manager
 
 
-logger = logging.getLogger("omicverse_web.agent")
+logger = logging.getLogger("omicclaw.agent")
 
 _TRACE_STORE = RunTraceStore()
 
