@@ -116,22 +116,6 @@ Legacy material preserved for migration context and historical reference.
 
 ::::
 
-## Other Languages
-
-::::{grid} 1 1 2 2
-:gutter: 3
-
-:::{grid-item-card}
-:link: zh/index
-:link-type: doc
-
-**简体中文**
-^^^
-Browse the Simplified Chinese documentation tree.
-:::
-
-::::
-
 ```{toctree}
 :hidden:
 :maxdepth: 2
@@ -141,12 +125,4 @@ en/getting-started/index
 en/interfaces/index
 en/reference/index
 en/archive/index
-```
-
-```{toctree}
-:hidden:
-:maxdepth: 1
-:caption: Other Languages
-
-zh/index
 ```
