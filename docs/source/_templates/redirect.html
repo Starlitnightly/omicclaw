@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ redirect_title }}</title>
+    <meta http-equiv="refresh" content="0; url={{ pathto(redirect_target, 1) }}" />
+    <link rel="canonical" href="{{ pathto(redirect_target, 1) }}" />
+    <script>
+      window.location.replace("{{ pathto(redirect_target, 1) }}");
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to <a href="{{ pathto(redirect_target, 1) }}">{{ redirect_target }}</a>.</p>
+  </body>
+</html>

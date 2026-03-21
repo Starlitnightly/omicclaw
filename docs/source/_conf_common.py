@@ -27,6 +27,12 @@ def apply_config(namespace: dict, mode: str) -> None:
         "zh": "zh/index",
     }[mode]
 
+    redirect_target = {
+        "pages": None,
+        "en": "en/index.html",
+        "zh": "zh/index.html",
+    }[mode]
+
     namespace.update(
         {
             "project": project,
@@ -81,3 +87,11 @@ def apply_config(namespace: dict, mode: str) -> None:
             "copybutton_prompt_is_regexp": True,
         }
     )
+
+    if redirect_target is not None:
+        namespace["html_additional_pages"] = {"index": "redirect.html"}
+        namespace["html_context"] = {
+            **namespace.get("html_context", {}),
+            "redirect_target": redirect_target,
+            "redirect_title": html_title,
+        }
