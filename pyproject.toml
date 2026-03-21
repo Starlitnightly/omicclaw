@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omicclaw"
-version = "0.1.5rc1"
+version = "2.0.2rc1"
 description = "OmicClaw gateway-first workspace for web UI, channels, notebooks, and agent workflows"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -18,7 +18,6 @@ classifiers = [
   "Environment :: Web Environment",
   "Framework :: Flask",
   "Intended Audience :: Science/Research",
-  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.8",
@@ -50,7 +49,7 @@ Repository = "https://github.com/Starlitnightly/omicclaw"
 
 
 [project.scripts]
-omicclaw = "omicclaw.start_server:omicclaw_main"
+omicclaw = "omicclaw.cli:main"
 
 [tool.setuptools]
 include-package-data = true

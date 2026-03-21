@@ -287,7 +287,13 @@ def _channel_configured(channel: str, cfg: dict) -> bool:
 
 def _build_start_command(channel: str, cfg: dict, api_key: str) -> list[str]:
     """Build the command line used to start a channel bot process."""
-    cmd = _find_omicverse_cmd() + ["claw", "--channel", channel]
+    # Use the channel-only Jarvis runner here.
+    #
+    # `omicverse claw --channel ...` defaults to gateway mode in the OmicVerse
+    # CLI dispatcher, which starts a second GatewayServer and may auto-open a
+    # new browser window. The gateway UI's fallback subprocess path should only
+    # launch the channel backend itself.
+    cmd = _find_omicverse_cmd() + ["jarvis", "--channel", channel]
 
     if cfg.get("model"):
         cmd += ["--model", cfg["model"]]
