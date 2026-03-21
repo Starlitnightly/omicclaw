@@ -33,7 +33,7 @@ dependencies = [
   "werkzeug",
   "ipykernel",
   "nbformat",
-  "omicverse",
+  "omicverse>=2.0.0",
   "omicverse-skills",
   "scanpy>=1.9",
   "numpy>=1.23",
@@ -50,6 +50,7 @@ Repository = "https://github.com/Starlitnightly/omicverse-web"
 
 [project.scripts]
 omicverse-web = "omicverse_web.start_server:main"
+omicclaw = "omicverse_web.start_server:omicclaw_main"
 
 [tool.setuptools]
 include-package-data = true

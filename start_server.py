@@ -184,6 +184,13 @@ def _parse_args(argv=None):
     parser.set_defaults(debug=False)
     return parser.parse_args(argv)
 
+def omicclaw_main(argv=None):
+    """Run the launcher with OmicClaw branding and forced login enabled."""
+    os.environ['OV_WEB_FORCE_LOGIN'] = '1'
+    os.environ['OV_LAUNCHER'] = 'omicclaw'
+    return main(argv)
+
+
 def main(argv=None):
     """Run the launcher."""
     args = _parse_args(argv)
