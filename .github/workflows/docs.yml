@@ -1,0 +1,101 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docs.yml"
+      - ".readthedocs.yaml"
+      - "docs/**"
+  pull_request:
+    paths:
+      - ".github/workflows/docs.yml"
+      - ".readthedocs.yaml"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install docs dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Build documentation for GitHub Pages
+        run: |
+          sphinx-build -b dirhtml docs/source docs/_build/dirhtml
+          touch docs/_build/dirhtml/.nojekyll
+
+      - name: Set up GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/_build/dirhtml
+
+  deploy-github-pages:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  trigger-readthedocs:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.READTHEDOCS_TOKEN != ''
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      READTHEDOCS_API_BASE: ${{ vars.READTHEDOCS_API_BASE }}
+      READTHEDOCS_EN_PROJECT: ${{ vars.READTHEDOCS_EN_PROJECT }}
+      READTHEDOCS_ZH_PROJECT: ${{ vars.READTHEDOCS_ZH_PROJECT }}
+      READTHEDOCS_TOKEN: ${{ secrets.READTHEDOCS_TOKEN }}
+
+    steps:
+      - name: Trigger English Read the Docs build
+        if: env.READTHEDOCS_EN_PROJECT != ''
+        run: |
+          api_base="${READTHEDOCS_API_BASE:-https://app.readthedocs.org/api/v3}"
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Token ${READTHEDOCS_TOKEN}" \
+            "${api_base}/projects/${READTHEDOCS_EN_PROJECT}/versions/latest/builds/"
+
+      - name: Trigger Chinese Read the Docs build
+        if: env.READTHEDOCS_ZH_PROJECT != ''
+        run: |
+          api_base="${READTHEDOCS_API_BASE:-https://app.readthedocs.org/api/v3}"
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Token ${READTHEDOCS_TOKEN}" \
+            "${api_base}/projects/${READTHEDOCS_ZH_PROJECT}/versions/latest/builds/"
