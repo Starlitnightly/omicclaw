@@ -14,3 +14,12 @@ Workspace, authentication, and launch workflow guides.
 2. [Setup and Auth](setup-auth.md)
 3. [Workspace Tutorial](workspace.md)
 4. [Launch Modes](launch-modes.md)
+
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+workspace
+setup-auth
+launch-modes
+```
