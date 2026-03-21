@@ -1,7 +1,41 @@
-include README.md
 include LICENSE
+include README.md
 include pyproject.toml
-recursive-include src/omicverse_skills/skills *.md
+include MANIFEST.in
+include __init__.py
+include app.py
+include start_server.py
+include index.html
+include single_cell_analysis_standalone.html
+include default.ipynb
+exclude app.py.backup
+exclude app_refactored.py
+exclude test.py
+exclude package.json
+exclude package-lock.json
+exclude quick_start.sh
+recursive-include routes *.py
+recursive-include services *.py
+recursive-include utils *.py
+recursive-include server *.py
+recursive-include static *.css *.js *.png *.jpg *.jpeg *.svg *.ico *.woff *.woff2 *.ttf *.eot
+recursive-include fbs *.fbs
+prune .git
+prune .github
+prune .claude
+prune dist
+prune build
+prune omicverseweb.egg-info
+prune dev
+prune data
+prune models
+prune temp
+prune __pycache__
+prune node_modules
+prune backend
+prune moban7855
+prune genesets
 global-exclude .DS_Store
 global-exclude *.py[cod]
-global-exclude __pycache__
+global-exclude .Rhistory
+global-exclude */__pycache__/*

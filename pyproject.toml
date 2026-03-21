@@ -3,18 +3,20 @@ requires = ["setuptools>=67", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "omicverse-skills"
-version = "0.1.0"
-description = "Standalone OmicVerse skills catalog"
+name = "omicverseweb"
+version = "0.1.5rc1"
+description = "OmicVerse web interface for single-cell analysis"
 readme = "README.md"
 requires-python = ">=3.8"
-license = "MIT"
+license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [
   {name = "Zehua Zeng", email = "starlitnightly@gmail.com"},
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Environment :: Web Environment",
+  "Framework :: Flask",
   "Intended Audience :: Science/Research",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
@@ -23,18 +25,77 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+  "flask",
+  "flask_cors",
+  "werkzeug",
+  "ipykernel",
+  "nbformat",
+  "omicverse",
+  "omicverse-skills",
+  "scanpy>=1.9",
+  "numpy>=1.23",
+  "pandas>=1.5",
+  "matplotlib>3.6",
+  "plotly",
+  "uv",
 ]
 
 [project.urls]
-Homepage = "https://github.com/Starlitnightly/omicclaw"
-Repository = "https://github.com/Starlitnightly/omicclaw"
+Homepage = "https://github.com/Starlitnightly/omicverse-web"
+Repository = "https://github.com/Starlitnightly/omicverse-web"
+
+
+[project.scripts]
+omicverse-web = "omicverse_web.start_server:main"
 
 [tool.setuptools]
 include-package-data = true
+packages = [
+  "omicverse_web",
+  "omicverse_web.routes",
+  "omicverse_web.services",
+  "omicverse_web.utils",
+  "omicverse_web.gateway",
+  "omicverse_web.server",
+  "omicverse_web.server.common",
+  "omicverse_web.server.common.fbs",
+  "omicverse_web.server.common.fbs.NetEncoding",
+  "omicverse_web.server.data_adaptor",
+]
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["omicverse_skills*"]
+[tool.setuptools.package-dir]
+omicverse_web = "."
+"omicverse_web.routes" = "routes"
+"omicverse_web.services" = "services"
+"omicverse_web.utils" = "utils"
+"omicverse_web.gateway" = "gateway"
+"omicverse_web.server" = "server"
+"omicverse_web.server.common" = "server/common"
+"omicverse_web.server.common.fbs" = "server/common/fbs"
+"omicverse_web.server.common.fbs.NetEncoding" = "server/common/fbs/NetEncoding"
+"omicverse_web.server.data_adaptor" = "server/data_adaptor"
 
 [tool.setuptools.package-data]
-omicverse_skills = ["skills/*/*.md"]
+omicverse_web = [
+  "index.html",
+  "single_cell_analysis_standalone.html",
+  "default.ipynb",
+  "server/**",
+  "static/**",
+  "fbs/**",
+]
+
+[tool.setuptools.exclude-package-data]
+"*" = [
+  ".DS_Store",
+  "*.py[cod]",
+  ".Rhistory",
+  "**/.DS_Store",
+  "**/*.py[cod]",
+  "**/.Rhistory",
+  "__pycache__/*",
+  "**/__pycache__/*",
+]

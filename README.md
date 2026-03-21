@@ -1,251 +1,173 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Starlitnightly/ImageStore/main/omicverse_img/Gemini_Generated_Image_xefpyexefpyexefp.png" width="400" alt="omicclaw">
+  <img src="https://raw.githubusercontent.com/Starlitnightly/ImageStore/main/omicverse_img/Gemini_Generated_Image_xefpyexefpyexefp.png" width="400" alt="OmicClaw">
 </p>
 
-
 <p align="center">
-  <strong>The standalone skill catalog for OmicVerse.</strong><br>
-  Built for <code>omicverse claw</code> and OmicVerse agent workflows. Tutorial-backed. Reproducible. Bioinformatics-native.
+  <strong>OmicClaw</strong><br>
+  The gateway-first OmicVerse workspace for web UI, channels, notebooks, and agent workflows.
 </p>
 
 <p align="center">
   <a href="https://img.shields.io/badge/python-3.8%2B-blue?logo=python&logoColor=white"><img src="https://img.shields.io/badge/python-3.8%2B-blue?logo=python&logoColor=white" alt="Python 3.8+"></a>
-  <a href="https://img.shields.io/badge/skills-32-orange"><img src="https://img.shields.io/badge/skills-32-orange" alt="32 skills"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
-  <a href="https://pypi.org/project/omicverse-skills/"><img src="https://img.shields.io/badge/PyPI-omicverse--skills-blue" alt="PyPI omicverse-skills"></a>
+  <a href="https://img.shields.io/badge/runtime-web%20gateway-0f766e"><img src="https://img.shields.io/badge/runtime-web%20gateway-0f766e" alt="Web gateway"></a>
+  <a href="https://img.shields.io/badge/channels-telegram%20%7C%20feishu%20%7C%20imessage%20%7C%20qq-2563eb"><img src="https://img.shields.io/badge/channels-telegram%20%7C%20feishu%20%7C%20imessage%20%7C%20qq-2563eb" alt="Channels"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green" alt="GPL-3.0"></a>
 </p>
 
----
-
-## What omicclaw Does Today
-
-`omicclaw` packages the OmicVerse skill library as a standalone repository and Python distribution:
-
-- `32` skills covering single-cell, bulk RNA-seq, spatial transcriptomics, multi-omics, knowledge lookup, and data export
-- tutorial-aligned instructions derived from OmicVerse workflows
-- a lightweight Python API for discovering bundled skills
-- a clean dependency boundary so skills can evolve independently of the main `omicverse` source tree
-
-This repository is not a replacement for `omicverse`. It is the skill layer that sits on top of `omicverse`.
-
-If `omicverse` provides the analysis engine, `omicclaw` provides the domain-specific task playbooks that help `omicverse claw` generate better code.
+> For Chinese documentation, see [README_CN.md](README_CN.md).
+>
+> Illustrated tutorials:
+> [English walkthrough](TUTORIAL.md) |
+> [中文图文教程](TUTORIAL_CN.md)
 
 ---
 
-## The Problem
+## What This Repository Is
 
-General-purpose coding agents can usually write plausible bioinformatics code, but they often miss domain details that matter:
+This repository is now the standalone web and gateway application behind **OmicClaw**.
 
-- whether a workflow expects raw counts or log-transformed values
-- which AnnData fields must exist before a plot or downstream method
-- how a specific OmicVerse tutorial orders preprocessing, clustering, annotation, and export
-- which defensive checks prevent broken pipelines
+If you want the original screenshot-driven walkthrough of the analysis interface, use the tutorial index above instead of this README.
 
-That is what these skills encode.
+Historically it was published as `omicverse-web` / `omicverseweb`. Those names still exist at the repository and package level for compatibility, but the product surface has been fully repositioned as **OmicClaw**.
 
-Instead of asking a model to guess how to combine `ov.pp`, `ov.single`, `ov.bulk`, or `ov.space`, `omicclaw` gives the agent reusable, tutorial-backed instructions for each analysis family.
+In practice, this repo is the part of OmicClaw that provides:
 
----
+- the authenticated web entrypoint
+- the gateway UI for managing channels
+- the browser workspace for files, notebooks, terminals, and code execution
+- the frontend and backend glue between OmicVerse analysis flows and agent-driven workflows
 
-## What Is a Skill?
-
-A skill is a small, focused knowledge package for one analysis job.
-
-Each skill directory contains:
-
-- `SKILL.md`: when to use the workflow, its core steps, expected inputs, and defensive checks
-- `reference.md` when needed: extra operational notes, caveats, or tutorial-derived details
-
-Conceptually:
-
-```text
-general LLM guesswork -> "maybe this is the right omicverse pipeline"
-omicverse + omicclaw  -> "use the right workflow, with the right prerequisites"
-```
+If `omicverse` is the analysis engine and `omicclaw` is the skill and workflow layer, this repository is the **interactive runtime surface** users actually open.
 
 ---
 
-## Skill Coverage
+## What OmicClaw Provides
 
-Current skills are organized around the major OmicVerse analysis surfaces:
+### 1. Gateway and channel control
 
-| Area | Examples |
-| --- | --- |
-| Single-cell | preprocessing, clustering, annotation, trajectory, SCENIC, CellPhoneDB, CellFate |
-| Bulk RNA-seq | DEG, DESeq2, ComBat batch correction, WGCNA, TCGA preprocessing |
-| Spatial | spatial tutorials, single-to-spatial mapping |
-| Multi-omics | single-cell multi-omics integration, Bulk2Single, BulkTrajBlend |
-| Knowledge and utilities | BioContext knowledge queries, datasets loading, plotting, stats, transforms |
-| Export | Excel export, PDF export |
+OmicClaw is no longer just a static analysis page. It is a gateway-first product that can:
 
-Skill files live under:
+- launch a branded login-protected web workspace
+- manage channel lifecycles from the UI
+- connect the same runtime to Telegram, Feishu, iMessage, and QQ
+- keep web and channel sessions aligned through the gateway runtime
 
-```text
-src/omicverse_skills/skills/
-```
+### 2. Browser workspace
+
+The web application includes:
+
+- a notebook-style code editor with movable cells
+- file browser and upload flows
+- terminal access
+- runtime state and session management
+- account/auth flows
+- bilingual interface support
+
+### 3. OmicVerse analysis interface
+
+The product still exposes the OmicVerse analysis experience, including:
+
+- preprocessing and QC
+- visualization and clustering
+- annotation and downstream analysis
+- notebook execution and script-oriented workflows
+
+The difference is that this analysis interface now lives inside the broader **OmicClaw** application shell rather than being documented as a standalone tutorial site.
 
 ---
 
-## Quick Start
+## Installation
 
-Install `omicverse` first. This repository depends on the OmicVerse runtime and is meant to be used with it.
+### Recommended product install
 
-### Install from PyPI
+Install the OmicVerse runtime together with the web application:
 
 ```bash
-pip install -U omicverse
-pip install -U omicverse-skills
-omicverse claw --help
+pip install -U "omicverse[jarvis]" omicverseweb
 ```
 
 ### Install from source
 
 ```bash
-git clone https://github.com/Starlitnightly/omicclaw.git
-cd omicclaw
-pip install -U omicverse
+git clone https://github.com/Starlitnightly/omicverse-web.git
+cd omicverse-web
 pip install -e .
 ```
 
-Package names:
+The package and repository names remain:
 
-- GitHub repository: `omicclaw`
-- PyPI distribution: `omicverse-skills`
-- Python package: `omicverse_skills`
+- GitHub repository: `omicverse-web`
+- PyPI package: `omicverseweb`
+- Python package: `omicverse_web`
 
----
-
-## Basic Usage with `omicverse claw`
-
-The recommended usage pattern follows the `OmicVerse Claw CLI` workflow: describe the analysis you want in natural language and let `omicverse claw` generate code.
-
-Reference tutorial:
-
-- `OmicVerse Claw CLI`: <https://omicverse.readthedocs.io/en/latest/Tutorials-jarvis/t_claw_cli/#2-basic-usage>
-
-The simplest form is:
-
-```bash
-omicverse claw "basic qc and clustering"
-```
-
-This prints generated Python code to `stdout`.
-
-Examples mapped to this skill library:
-
-```bash
-omicverse claw "preprocess PBMC3k and run PCA neighbors UMAP"
-omicverse claw "annotate lung scRNA-seq with a minimal workflow"
-omicverse claw "find marker genes for each leiden cluster"
-omicverse claw "run DESeq2-style bulk differential expression with omicverse"
-omicverse claw "build a WGCNA workflow from an expression matrix"
-omicverse claw "map single-cell atlas to spatial transcriptomics data"
-omicverse claw "query UniProt and Reactome for a gene list"
-```
-
-In practice, `omicverse claw` initializes the OmicVerse agent and uses this skill catalog to ground code generation in the right workflow family.
+The product name presented to users is **OmicClaw**.
 
 ---
 
-## Save Output to a File
+## Launch Modes
+
+There are now three common ways to launch the OmicClaw experience:
+
+### Recommended: branded OmicClaw entry
 
 ```bash
-omicverse claw "basic qc and clustering" --output workflow.py
+omicclaw
 ```
 
-Useful when you want code generation to stay script-first and reviewable.
+Use this when you want the full OmicClaw-branded gateway with forced login behavior.
 
-More examples:
+### Generic gateway entry
 
 ```bash
-omicverse claw "find marker genes for each leiden cluster" --output markers.py
-omicverse claw "run a basic PCA plus neighbors plus UMAP pipeline" --output pbmc_pipeline.py
+omicverse gateway
 ```
+
+Use this when you want the same runtime without the OmicClaw-branded launcher name.
+
+### Standalone web launcher from this repository
+
+```bash
+omicverse-web
+```
+
+Use this when you are working directly with the standalone web package or developing the gateway UI itself.
 
 ---
 
-## Common Options
+## Where This Repo Fits
 
-Choose a model:
+The current OmicClaw stack is split across three layers:
 
-```bash
-omicverse claw --model gpt-5.2 "basic qc and clustering"
-```
+| Layer | Responsibility |
+| --- | --- |
+| `omicverse` | analysis engine, CLI entrypoints, channel runtime integration |
+| `omicclaw` | skill library and workflow grounding for agent/code generation |
+| `omicverse-web` | OmicClaw web UI, gateway backend, account flows, browser workspace |
 
-Use an explicit API key:
-
-```bash
-omicverse claw --api-key "$OPENAI_API_KEY" "basic qc and clustering"
-```
-
-Use a custom endpoint:
-
-```bash
-omicverse claw \
-  --endpoint http://127.0.0.1:11434/v1 \
-  --model my-model \
-  "basic qc and clustering"
-```
-
-Disable the lightweight reflection pass:
-
-```bash
-omicverse claw --no-reflection "basic qc and clustering"
-```
+This repository should therefore be read as the **UI and gateway runtime** part of OmicClaw.
 
 ---
 
-## Debug and Daemon Modes
+## Development Notes
 
-Inspect skill matching and runtime behavior:
-
-```bash
-omicverse claw --debug-registry "basic qc and clustering"
-```
-
-Keep the agent warm for repeated local calls:
+Useful commands when working on this repository:
 
 ```bash
-omicverse claw --daemon
-omicverse claw --use-daemon "basic qc and clustering"
-omicverse claw --use-daemon "find marker genes"
-omicverse claw --stop-daemon
+pip install -e .
+omicverse-web --help
 ```
 
-This is useful when you are iterating on prompts across multiple OmicVerse workflows.
+If you are validating the full OmicClaw product flow, pair this repository with the main OmicVerse repo and launch through:
 
----
-
-## When to Use `claw` vs `jarvis`
-
-Use `omicverse claw` when:
-
-- you want code only
-- you want to inspect or edit the generated script yourself
-- you want a CLI-first workflow that can be called from shells or automation
-
-Use OmicVerse Jarvis when:
-
-- you want a chat-style workflow
-- you want interactive follow-up and session memory
-- you want a user-facing assistant rather than a code-only generator
-
----
-
-## Python API
-
-You can also inspect the bundled skill catalog directly:
-
-```python
-from omicverse_skills import list_skills, load_skill_text, skill_root
-
-print(skill_root())
-print(len(list_skills()))
-print(list_skills()[0]["slug"])
-print(load_skill_text("single-preprocessing")[:200])
+```bash
+omicclaw
 ```
 
-This is useful for tooling, testing, indexing, and custom agent integrations.
+or:
+
+```bash
+omicverse gateway
+```
 
 ---
 
@@ -253,50 +175,26 @@ This is useful for tooling, testing, indexing, and custom agent integrations.
 
 ```text
 .
-├── README.md
-├── pyproject.toml
-├── src/
-│   └── omicverse_skills/
-│       ├── __init__.py
-│       ├── registry.py
-│       └── skills/
-│           ├── single-preprocessing/
-│           ├── bulk-deg-analysis/
-│           ├── spatial-tutorials/
-│           └── ...
-└── LICENSE
+├── app.py
+├── gateway/
+├── routes/
+├── services/
+├── static/
+├── single_cell_analysis_standalone.html
+├── start_server.py
+└── pyproject.toml
 ```
 
----
+Key areas:
 
-## Add a New Skill
-
-Use the existing directories as the template:
-
-1. Create `src/omicverse_skills/skills/<skill-slug>/SKILL.md`.
-2. Add `reference.md` if the workflow needs extra tutorial detail.
-3. Keep the scope narrow: one skill should solve one analysis family well.
-4. Prefer explicit prerequisites and defensive validation over generic advice.
-5. Align the instructions with real OmicVerse APIs and tutorial order.
-
-Good skills for this repo are usually:
-
-- tutorial-backed
-- OmicVerse-specific
-- reproducible across datasets
-- clear about expected inputs and failure modes
+- `gateway/`: gateway routes, channel state, runtime coordination
+- `services/`: backend services used by the workspace
+- `static/`: frontend assets
+- `single_cell_analysis_standalone.html`: the main OmicClaw application shell
+- `start_server.py`: standalone launcher for this package
 
 ---
 
-## Build and Release
+## Status
 
-```bash
-python -m build
-python -m twine upload dist/*
-```
-
----
-
-## License
-
-MIT.
+This repository should now be treated as **OmicClaw's web application**, even though the compatibility package name remains `omicverseweb`.
