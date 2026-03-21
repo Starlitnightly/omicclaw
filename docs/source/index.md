@@ -10,7 +10,7 @@
 
 ---
 
-## English Docs
+## Documentation
 
 ::::{grid} 2 2 4 4
 :gutter: 3
@@ -119,7 +119,6 @@ Legacy material preserved for migration context and historical reference.
 ```{toctree}
 :hidden:
 :maxdepth: 2
-:caption: English Docs
 
 en/getting-started/index
 en/interfaces/index

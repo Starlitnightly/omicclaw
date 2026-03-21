@@ -49,7 +49,6 @@ def apply_config(namespace: dict, mode: str) -> None:
             "html_title": html_title,
             "html_static_path": ["_static"],
             "html_css_files": ["custom.css"],
-            "html_js_files": ["sidebar-toggle.js"],
             "html_theme_options": {
                 "repository_url": "https://github.com/Starlitnightly/omicclaw",
                 "use_repository_button": True,

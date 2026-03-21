@@ -71,54 +71,6 @@ html[data-theme="dark"] .logo img {
     background-color: transparent !important;
 }
 
-/* ===== Sidebar Toggle ===== */
-.bd-sidenav li.has-children {
-    position: relative;
-}
-
-.bd-sidenav li.has-children > a {
-    padding-right: 2rem;
-}
-
-.bd-sidenav li.has-children > details {
-    position: absolute;
-    top: 0.15rem;
-    right: 0;
-    margin: 0;
-}
-
-.bd-sidenav li.has-children > details > summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 0.2rem 0.35rem;
-    border-radius: 6px;
-    color: var(--primary);
-    line-height: 1;
-}
-
-.bd-sidenav li.has-children > details > summary::-webkit-details-marker {
-    display: none;
-}
-
-.bd-sidenav li.has-children > details > summary:hover {
-    background: rgba(15, 118, 110, 0.08);
-}
-
-.bd-sidenav li.has-children > details .toctree-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.18s ease;
-}
-
-.bd-sidenav li.has-children > details:not([open]) .toctree-toggle {
-    transform: rotate(-90deg);
-}
-
-.bd-sidenav li.has-children > ul[hidden] {
-    display: none !important;
-}
-
 /* ===== 代码块 ===== */
 .highlight,
 div[class*="highlight-"] {
