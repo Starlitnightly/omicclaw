@@ -40,3 +40,5 @@ site/
 # Local runtime / generated assets
 temp/
 data/
+models/
+fbs/
