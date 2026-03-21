@@ -1,0 +1,6 @@
+sphinx>=8,<9
+myst-parser>=4,<5
+sphinx-book-theme>=1.1,<2
+sphinx-design>=0.6,<1
+sphinx-copybutton>=0.5,<1
+linkify-it-py>=2,<3

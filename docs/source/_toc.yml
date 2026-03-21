@@ -1,0 +1,22 @@
+format: jb-book
+root: index
+title: Docs Home
+
+chapters:
+- file: en/getting-started/index
+  sections:
+  - file: en/getting-started/installation
+  - file: en/getting-started/quickstart
+- file: en/interfaces/index
+  sections:
+  - file: en/interfaces/workspace
+  - file: en/interfaces/setup-auth
+  - file: en/interfaces/launch-modes
+- file: en/reference/index
+  sections:
+  - file: en/reference/maintenance
+  - file: en/reference/omicverse-docs-checklist
+- file: en/archive/index
+  sections:
+  - file: en/archive/old-readme
+- file: zh/index
