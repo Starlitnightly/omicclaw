@@ -6,13 +6,15 @@ import threading
 from typing import Any, Optional
 
 
-_SUPPORTED_CHANNELS = ("telegram", "feishu", "qq", "imessage")
+_SUPPORTED_CHANNELS = ("telegram", "discord", "feishu", "qq", "imessage")
 _LOG_BUF_SIZE = 200
 
 
 def _channel_configured(channel: str, cfg: dict) -> bool:
     if channel == "telegram":
         return bool((cfg.get("telegram") or {}).get("token"))
+    if channel == "discord":
+        return bool((cfg.get("discord") or {}).get("token"))
     if channel == "feishu":
         fc = cfg.get("feishu") or {}
         return bool(fc.get("app_id") and fc.get("app_secret"))
@@ -37,6 +39,8 @@ class _ChannelLogHandler(logging.Handler):
         if self._channel == "qq" and not name.startswith("omicverse.jarvis.qq"):
             return
         if self._channel == "telegram" and not name.startswith("omicverse.jarvis"):
+            return
+        if self._channel == "discord" and not name.startswith("omicverse.jarvis.discord"):
             return
         if self._channel == "feishu" and not name.startswith("omicverse.jarvis.feishu"):
             return
@@ -157,6 +161,17 @@ class InProcessChannelManager:
                 session_manager=self._sm,
                 access_control=AccessControl([str(x) for x in (tc.get("allowed_users") or [])]),
                 verbose=False,
+                stop_event=stop_event,
+            )
+            return
+
+        if channel == "discord":
+            from omicverse.jarvis.channels.discord import run_discord_bot
+
+            dc = dict(cfg.get("discord") or {})
+            run_discord_bot(
+                token=str(dc.get("token") or ""),
+                session_manager=self._sm,
                 stop_event=stop_event,
             )
             return

@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://img.shields.io/badge/python-3.8%2B-blue?logo=python&logoColor=white"><img src="https://img.shields.io/badge/python-3.8%2B-blue?logo=python&logoColor=white" alt="Python 3.8+"></a>
   <a href="https://img.shields.io/badge/runtime-web%20gateway-0f766e"><img src="https://img.shields.io/badge/runtime-web%20gateway-0f766e" alt="Web gateway"></a>
-  <a href="https://img.shields.io/badge/channels-telegram%20%7C%20feishu%20%7C%20imessage%20%7C%20qq-2563eb"><img src="https://img.shields.io/badge/channels-telegram%20%7C%20feishu%20%7C%20imessage%20%7C%20qq-2563eb" alt="Channels"></a>
+  <a href="https://img.shields.io/badge/channels-telegram%20%7C%20discord%20%7C%20feishu%20%7C%20imessage%20%7C%20qq-2563eb"><img src="https://img.shields.io/badge/channels-telegram%20%7C%20discord%20%7C%20feishu%20%7C%20imessage%20%7C%20qq-2563eb" alt="Channels"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green" alt="GPL-3.0"></a>
 </p>
 
@@ -47,7 +47,7 @@ OmicClaw is no longer just a static analysis page. It is a gateway-first product
 
 - launch a branded login-protected web workspace
 - manage channel lifecycles from the UI
-- connect the same runtime to Telegram, Feishu, iMessage, and QQ
+- connect the same runtime to Telegram, Discord, Feishu, iMessage, and QQ
 - keep web and channel sessions aligned through the gateway runtime
 
 ### 2. Browser workspace

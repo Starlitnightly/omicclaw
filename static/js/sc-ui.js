@@ -1356,6 +1356,7 @@ Object.assign(SingleCellAnalysis.prototype, {
     _renderChannelCards() {
         const channels = [
             { id: 'telegram',  label: this.t('gateway.channel.telegram'),  icon: 'feather-send',      color: '#2AABEE' },
+            { id: 'discord',   label: this.t('gateway.channel.discord'),   icon: 'feather-hash',      color: '#5865F2' },
             { id: 'feishu',    label: this.t('gateway.channel.feishu'), icon: 'feather-feather', color: '#3370FF' },
             { id: 'qq',        label: this.t('gateway.channel.qq'),    icon: 'feather-message-square', color: '#1AABE6' },
             { id: 'imessage',  label: this.t('gateway.channel.imessage'),  icon: 'feather-message-circle', color: '#34C759' },
@@ -1483,6 +1484,10 @@ Object.assign(SingleCellAnalysis.prototype, {
             ${field('allowed_users',this.t('gateway.telegram.allowedUsers'),'text', (cfg.allowed_users||[]).join(', '), this.t('gateway.telegram.allowedUsersPlaceholder'), this.t('gateway.telegram.allowedUsersHint'))}
         </div>`;
 
+        if (ch === 'discord') return `<div class="row g-2">
+            ${secret('token',this.t('gateway.discord.token'),'discord',this.t('gateway.discord.tokenHint'))}
+        </div>`;
+
         if (ch === 'feishu') return `<div class="row g-2">
             ${field('app_id',this.t('gateway.feishu.appId'),'text', cfg.app_id||'', 'cli_xxxxxxxxxx', '')}
             ${secret('app_secret',this.t('gateway.feishu.appSecret'),'feishu','Set FEISHU_APP_SECRET env var or enter here')}
@@ -1604,6 +1609,9 @@ Object.assign(SingleCellAnalysis.prototype, {
             token: val('token'),
             allowed_users: (val('allowed_users') || '').split(',').map(s => s.trim()).filter(Boolean),
         };
+        if (ch === 'discord') return {
+            token: val('token'),
+        };
         if (ch === 'feishu') return {
             app_id: val('app_id'), app_secret: val('app_secret'),
             connection_mode: val('connection_mode'),
@@ -1681,6 +1689,7 @@ Object.assign(SingleCellAnalysis.prototype, {
             if (data.ok) {
                 this._gwConfig = cfg;
                 this._showChResult(ch, true, `${this.t('gateway.savedTo')} ${data.path}`);
+                this.loadChannelConfig();
             } else {
                 this._showChResult(ch, false, data.error || this.t('gateway.saveFailed'));
             }

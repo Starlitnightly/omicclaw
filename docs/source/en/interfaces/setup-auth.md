@@ -64,7 +64,7 @@ Supported providers: **Anthropic Claude**, **OpenAI**, **Gemini**, and any OpenA
 
 | Flag | Description |
 |------|-------------|
-| `--channel` | Message channel: `telegram`, `feishu`, `imessage`, `qq` |
+| `--channel` | Message channel: `telegram`, `discord`, `feishu`, `imessage`, `qq` |
 | `--model` | LLM model name, e.g. `claude-opus-4-6`, `gpt-4o` |
 | `--api-key` | Explicit provider API key |
 | `--endpoint` | Custom OpenAI-compatible base URL |
@@ -89,6 +89,12 @@ Launch with a Telegram channel and Claude:
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
 omicclaw --channel telegram --token "$TELEGRAM_BOT_TOKEN" --model claude-opus-4-6
+```
+
+Launch with Discord:
+
+```bash
+omicclaw --channel discord --discord-token "$DISCORD_BOT_TOKEN"
 ```
 
 Feishu with WebSocket connection mode:

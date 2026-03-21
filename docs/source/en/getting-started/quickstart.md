@@ -25,7 +25,7 @@ Start the workspace alongside a Telegram channel:
 omicclaw --channel telegram --token "$TELEGRAM_BOT_TOKEN"
 ```
 
-Replace `telegram` with `feishu`, `imessage`, or `qq` as needed.
+Replace `telegram` with `discord`, `feishu`, `imessage`, or `qq` as needed.
 
 ## 4. First-Run Setup Wizard
 

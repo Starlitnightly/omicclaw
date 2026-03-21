@@ -95,6 +95,12 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 omicclaw --channel telegram --token "$TELEGRAM_BOT_TOKEN" --model claude-opus-4-6
 ```
 
+带 Discord 频道启动：
+
+```bash
+omicclaw --channel discord --discord-token "$DISCORD_BOT_TOKEN"
+```
+
 飞书 WebSocket 模式：
 
 ```bash

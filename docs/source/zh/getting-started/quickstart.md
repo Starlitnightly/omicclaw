@@ -29,7 +29,7 @@ omicclaw
 omicclaw --channel telegram --token "$TELEGRAM_BOT_TOKEN"
 ```
 
-可将 `telegram` 替换为 `feishu`、`imessage` 或 `qq`。
+可将 `telegram` 替换为 `discord`、`feishu`、`imessage` 或 `qq`。
 
 ## 4. 首次配置向导
 

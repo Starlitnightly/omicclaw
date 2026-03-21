@@ -126,6 +126,9 @@ DEFAULT_CONFIG: dict = {
         "token": None,
         "allowed_users": [],
     },
+    "discord": {
+        "token": None,
+    },
     "feishu": {
         "app_id": None,
         "app_secret": None,
@@ -192,6 +195,7 @@ def _write_config(new_cfg: dict) -> None:
     # Preserve existing secret values if the incoming value is empty/None
     _SENSITIVE = [
         ("telegram", "token"),
+        ("discord", "token"),
         ("feishu", "app_secret"),
         ("feishu", "verification_token"),
         ("feishu", "encrypt_key"),
@@ -273,6 +277,8 @@ def _channel_configured(channel: str, cfg: dict) -> bool:
     """Return True when a channel has enough config to be started."""
     if channel == "telegram":
         return bool(cfg.get("telegram", {}).get("token"))
+    if channel == "discord":
+        return bool(cfg.get("discord", {}).get("token"))
     if channel == "feishu":
         feishu_cfg = cfg.get("feishu", {})
         return bool(feishu_cfg.get("app_id") and feishu_cfg.get("app_secret"))
@@ -309,6 +315,11 @@ def _build_start_command(channel: str, cfg: dict, api_key: str) -> list[str]:
         cmd += ["--token", token]
         for u in cfg.get("telegram", {}).get("allowed_users") or []:
             cmd += ["--allowed-user", str(u)]
+    elif channel == "discord":
+        dc = cfg.get("discord", {})
+        if not dc.get("token"):
+            raise RuntimeError("Discord token not configured — save config first")
+        cmd += ["--discord-token", dc["token"]]
     elif channel == "feishu":
         fc = cfg.get("feishu", {})
         if not fc.get("app_id") or not fc.get("app_secret"):
@@ -460,7 +471,7 @@ def list_channel_states() -> list[dict]:
     with _PROCESS_LOCK:
         _refresh_channel_states_locked()
         snapshot: list[dict] = []
-        for channel in ("telegram", "feishu", "qq", "imessage"):
+        for channel in ("telegram", "discord", "feishu", "qq", "imessage"):
             if channel in managed:
                 snapshot.append(managed[channel])
                 continue
@@ -492,7 +503,7 @@ def auto_start_configured_channels() -> list[dict]:
             results.extend(manager.auto_start_configured(cfg, api_key=api_key))
         except Exception as exc:
             results.append({"ok": False, "error": str(exc), "source": "in-process"})
-    for channel in ("telegram", "feishu", "qq", "imessage"):
+    for channel in ("telegram", "discord", "feishu", "qq", "imessage"):
         if manager is not None and manager.supports(channel):
             continue
         if not _channel_configured(channel, cfg):
@@ -545,6 +556,7 @@ def get_config():
     display = json.loads(json.dumps(cfg))  # deep copy
     _SECRET_FIELDS = [
         ("telegram", "token"),
+        ("discord", "token"),
         ("feishu", "app_secret"),
         ("feishu", "verification_token"),
         ("feishu", "encrypt_key"),
@@ -613,6 +625,23 @@ def test_channel(channel: str):
                 })
             return jsonify({"ok": False, "error": data.get("description", "Unknown Telegram error")})
 
+        elif channel == "discord":
+            token = body.get("token") or cfg.get("discord", {}).get("token") or ""
+            if not token:
+                return jsonify({"ok": False, "error": "No bot token configured"})
+            resp = requests.get(
+                "https://discord.com/api/v10/users/@me",
+                headers={"Authorization": f"Bot {token}"},
+                timeout=8,
+            )
+            data = resp.json()
+            if resp.ok and data.get("id"):
+                return jsonify({
+                    "ok": True,
+                    "message": f"✓ Discord bot {data.get('username')}#{data.get('discriminator', '0')} — connection OK",
+                })
+            return jsonify({"ok": False, "error": data.get("message", "Discord auth failed")})
+
         elif channel == "feishu":
             app_id = body.get("app_id") or cfg.get("feishu", {}).get("app_id") or ""
             app_secret = body.get("app_secret") or cfg.get("feishu", {}).get("app_secret") or ""
@@ -677,7 +706,7 @@ def test_channel(channel: str):
 @channel_config_bp.route("/<channel>/start", methods=["POST"])
 def start_channel(channel: str):
     """Start a channel bot in-process when supported, else as a subprocess."""
-    if channel not in ("telegram", "feishu", "qq", "imessage"):
+    if channel not in ("telegram", "discord", "feishu", "qq", "imessage"):
         return jsonify({"ok": False, "error": f"Unknown channel: {channel}"}), 400
 
     cfg = _read_config()

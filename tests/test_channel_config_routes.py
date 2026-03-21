@@ -26,6 +26,21 @@ class ChannelConfigRoutesTests(unittest.TestCase):
         self.assertIn("--endpoint", cmd)
         self.assertNotIn("claw", cmd)
 
+    def test_build_start_command_for_discord_uses_discord_token_flag(self) -> None:
+        cfg = {
+            "model": "gpt-5.3-codex",
+            "discord": {
+                "token": "discord-token",
+            },
+        }
+
+        with mock.patch.object(routes, "_find_omicverse_cmd", return_value=["/tmp/omicverse"]):
+            cmd = routes._build_start_command("discord", cfg, "api-key")
+
+        self.assertEqual(cmd[:4], ["/tmp/omicverse", "jarvis", "--channel", "discord"])
+        self.assertIn("--discord-token", cmd)
+        self.assertIn("discord-token", cmd)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -33,7 +33,7 @@ dependencies = [
   "werkzeug",
   "ipykernel",
   "nbformat",
-  "omicverse>=2.0.1",
+  "omicverse>=2.0.2",
   "omicverse-skills",
   "scanpy>=1.9",
   "numpy>=1.23",

@@ -160,6 +160,11 @@ class GatewayChannelRegistry:
             "feishu", "dm", chat_id, session_manager, base_adata
         )
 
+    def discord_session(self, chat_id: str, session_manager, base_adata=None):
+        return self.get_or_create_session(
+            "discord", "dm", chat_id, session_manager, base_adata
+        )
+
     def qq_session(self, chat_id: str, session_manager, base_adata=None):
         return self.get_or_create_session(
             "qq", "dm", chat_id, session_manager, base_adata

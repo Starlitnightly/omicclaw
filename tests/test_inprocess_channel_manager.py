@@ -9,6 +9,43 @@ from gateway.inprocess_channel_manager import InProcessChannelManager
 
 
 class InProcessChannelManagerTests(unittest.TestCase):
+    def test_start_and_stop_discord_channel_in_process(self) -> None:
+        started = threading.Event()
+        stopped = threading.Event()
+
+        def _fake_run_discord_bot(**kwargs) -> None:  # noqa: ANN003
+            stop_event = kwargs["stop_event"]
+            started.set()
+            stop_event.wait(timeout=2.0)
+            stopped.set()
+
+        manager = InProcessChannelManager(session_manager=object())
+        cfg = {
+            "discord": {
+                "token": "discord-token",
+            }
+        }
+
+        with mock.patch("omicverse.jarvis.channels.discord.run_discord_bot", side_effect=_fake_run_discord_bot):
+            result = manager.start_channel("discord", cfg=cfg, source="test")
+            self.assertTrue(result["ok"])
+            self.assertTrue(started.wait(timeout=1.0))
+
+            states = {item["channel"]: item for item in manager.list_states(cfg)}
+            self.assertTrue(states["discord"]["running"])
+
+            stop_result = manager.stop_channel("discord")
+            self.assertTrue(stop_result["ok"])
+            self.assertTrue(stopped.wait(timeout=1.0))
+
+            deadline = time.time() + 1.0
+            while time.time() < deadline:
+                states = {item["channel"]: item for item in manager.list_states(cfg)}
+                if not states["discord"]["running"]:
+                    break
+                time.sleep(0.05)
+            self.assertFalse(states["discord"]["running"])
+
     def test_start_and_stop_qq_channel_in_process(self) -> None:
         started = threading.Event()
         stopped = threading.Event()

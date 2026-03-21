@@ -168,3 +168,23 @@ class WebChannelAdapter:
             adata=adata,
         )
         return session.session_id
+
+    def discord_deliver(
+        self,
+        chat_id: str,
+        user_text: str,
+        assistant_text: str,
+        adata: Any = None,
+        turn_id: str = "",
+    ) -> str:
+        """Deliver a Discord turn.  Returns the stable ``session_id``."""
+        session = self.get_or_create_session("discord", "dm", str(chat_id))
+        self.deliver(
+            session_id=session.session_id,
+            channel="discord",
+            user_text=user_text,
+            assistant_text=assistant_text,
+            turn_id=turn_id,
+            adata=adata,
+        )
+        return session.session_id

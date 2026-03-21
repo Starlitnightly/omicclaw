@@ -16,7 +16,7 @@ Start the workspace alongside a message channel:
 omicclaw --channel telegram --token "$TELEGRAM_BOT_TOKEN"
 ```
 
-Supported channels: `telegram`, `feishu`, `imessage`, `qq`.
+Supported channels: `telegram`, `discord`, `feishu`, `imessage`, `qq`.
 
 ```bash
 omicclaw --channel feishu --feishu-connection-mode websocket

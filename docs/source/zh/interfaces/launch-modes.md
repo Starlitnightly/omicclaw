@@ -20,7 +20,7 @@ omicclaw
 omicclaw --channel telegram --token "$TELEGRAM_BOT_TOKEN"
 ```
 
-支持的频道：`telegram`、`feishu`、`imessage`、`qq`。
+支持的频道：`telegram`、`discord`、`feishu`、`imessage`、`qq`。
 
 ```bash
 omicclaw --channel feishu --feishu-connection-mode websocket
