@@ -40,6 +40,7 @@ dependencies = [
   "pandas>=1.5",
   "matplotlib>3.6",
   "plotly",
+  "qrcode[pil]",
   "uv",
 ]
 

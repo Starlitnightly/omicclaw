@@ -276,12 +276,44 @@ def _random_wechat_uin() -> str:
     return base64.b64encode(str(value).encode("utf-8")).decode("ascii")
 
 
+def _make_qr_data_uri(content: str) -> str:
+    """Generate a PNG QR code from *content* and return a data: URI.
+
+    Mirrors cc-weixin's ``QRCode.toString(qrcode_img_content)`` — the WeChat
+    API's ``qrcode_img_content`` field is a URL that must be *encoded into* a
+    QR code, not treated as raw image bytes.
+    """
+    if not content:
+        return ""
+    try:
+        import io
+        import qrcode  # type: ignore
+        img = qrcode.make(content)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        return f"data:image/png;base64,{b64}"
+    except Exception:
+        return ""
+
+
 def _ilink_headers(body: str, *, token: Optional[str] = None) -> dict[str, str]:
     headers = {
         "Content-Type": "application/json",
         "AuthorizationType": "ilink_bot_token",
         "X-WECHAT-UIN": _random_wechat_uin(),
         "Content-Length": str(len(body.encode("utf-8"))),
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _ilink_get_headers(*, token: Optional[str] = None) -> dict[str, str]:
+    """Headers for GET requests — no Content-Length (mirrors cc-weixin apiGet)."""
+    headers: dict[str, str] = {
+        "AuthorizationType": "ilink_bot_token",
+        "X-WECHAT-UIN": _random_wechat_uin(),
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -790,17 +822,18 @@ def wechat_login_qr():
     cfg = _read_config()
     base_url = _resolve_wechat_base_url(body, cfg)
     try:
-        headers = _ilink_headers("{}", token=None)
         resp = requests.get(
             f"{base_url}/ilink/bot/get_bot_qrcode",
             params={"bot_type": "3"},
-            headers=headers,
-            timeout=10,
+            headers=_ilink_get_headers(),
+            timeout=(10, 30),
         )
         resp.raise_for_status()
         data = resp.json()
-        img_content = data.get("qrcode_img_content") or ""
-        img_src = f"data:image/png;base64,{img_content}" if img_content else ""
+        # qrcode_img_content is a URL/string that must be encoded *into* a QR
+        # code image — it is NOT already base64 PNG data.
+        qr_url = data.get("qrcode_img_content") or ""
+        img_src = _make_qr_data_uri(qr_url)
         return jsonify({
             "ok": True,
             "qrcode": data.get("qrcode") or "",
@@ -821,12 +854,11 @@ def wechat_login_status():
     cfg = _read_config()
     base_url = _resolve_wechat_base_url(request.args, cfg)
     try:
-        headers = _ilink_headers("{}", token=None)
         resp = requests.get(
             f"{base_url}/ilink/bot/get_qrcode_status",
             params={"qrcode": qrcode},
-            headers=headers,
-            timeout=10,
+            headers=_ilink_get_headers(),
+            timeout=(10, 40),
         )
         resp.raise_for_status()
         data = resp.json()
@@ -840,9 +872,12 @@ def wechat_login_status():
             })
         return jsonify({
             "ok": True,
-            "status": status or "pending",
+            "status": status or "wait",
             "message": data.get("message", ""),
         })
+    except requests.exceptions.ReadTimeout:
+        # Long-poll held the connection; treat as "still waiting".
+        return jsonify({"ok": True, "status": "wait"})
     except requests.exceptions.RequestException as exc:
         return jsonify({"ok": False, "error": f"Status request failed: {exc}"})
     except Exception as exc:

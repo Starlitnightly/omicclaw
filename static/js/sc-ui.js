@@ -1730,29 +1730,35 @@ Object.assign(SingleCellAnalysis.prototype, {
                 .then(r => r.json())
                 .then(data => {
                     if (!data.ok) {
+                        // Fatal protocol errors (e.g. invalid qrcode) — stop polling.
                         if (statusEl) statusEl.textContent = this.t('gateway.wechat.loginError');
                         if (helperEl) helperEl.textContent = data.error || '';
                         this._clearWechatLoginPoll();
                         return;
                     }
-                    if (statusEl) {
-                        let text = this.t('gateway.wechat.loginStatus');
-                        if (data.status) text = text.replace('{status}', data.status);
-                        statusEl.textContent = text;
-                    }
                     if (data.status === 'confirmed') {
                         this._clearWechatLoginPoll();
                         this._applyWechatLoginResult(data);
                         this._hideWechatLoginDialog();
+                        return;
+                    }
+                    if (data.status === 'expired') {
+                        if (statusEl) statusEl.textContent = this.t('gateway.wechat.loginError');
+                        this._clearWechatLoginPoll();
+                        return;
+                    }
+                    // "wait" / "scaned" / other — keep polling, update status text.
+                    if (statusEl && data.status && data.status !== 'wait') {
+                        let text = this.t('gateway.wechat.loginStatus');
+                        statusEl.textContent = text.replace('{status}', data.status);
                     }
                 })
                 .catch(() => {
-                    if (statusEl) statusEl.textContent = this.t('gateway.wechat.loginError');
-                    this._clearWechatLoginPoll();
+                    // Network / timeout errors are transient — keep polling silently.
                 });
         };
         poll();
-        this._wechatLoginPoller = setInterval(poll, 1500);
+        this._wechatLoginPoller = setInterval(poll, 2000);
     },
 
     _clearWechatLoginPoll() {
