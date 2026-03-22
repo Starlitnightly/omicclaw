@@ -6,7 +6,7 @@ import threading
 from typing import Any, Optional
 
 
-_SUPPORTED_CHANNELS = ("telegram", "discord", "feishu", "qq", "imessage")
+_SUPPORTED_CHANNELS = ("telegram", "discord", "wechat", "feishu", "qq", "imessage")
 _LOG_BUF_SIZE = 200
 
 
@@ -15,6 +15,8 @@ def _channel_configured(channel: str, cfg: dict) -> bool:
         return bool((cfg.get("telegram") or {}).get("token"))
     if channel == "discord":
         return bool((cfg.get("discord") or {}).get("token"))
+    if channel == "wechat":
+        return bool((cfg.get("wechat") or {}).get("token"))
     if channel == "feishu":
         fc = cfg.get("feishu") or {}
         return bool(fc.get("app_id") and fc.get("app_secret"))
@@ -41,6 +43,8 @@ class _ChannelLogHandler(logging.Handler):
         if self._channel == "telegram" and not name.startswith("omicverse.jarvis"):
             return
         if self._channel == "discord" and not name.startswith("omicverse.jarvis.discord"):
+            return
+        if self._channel == "wechat" and not name.startswith("omicverse.jarvis.wechat"):
             return
         if self._channel == "feishu" and not name.startswith("omicverse.jarvis.feishu"):
             return
@@ -197,6 +201,19 @@ class InProcessChannelManager:
                 )
             else:
                 run_feishu_ws_bot(**common)
+            return
+
+        if channel == "wechat":
+            from omicverse.jarvis.channels.wechat import run_wechat_bot
+
+            wc = dict(cfg.get("wechat") or {})
+            run_wechat_bot(
+                token=str(wc.get("token") or ""),
+                base_url=str(wc.get("base_url") or "https://ilinkai.weixin.qq.com"),
+                allow_from=[str(item) for item in (wc.get("allow_from") or []) if str(item).strip()],
+                session_manager=self._sm,
+                stop_event=stop_event,
+            )
             return
 
         if channel == "qq":

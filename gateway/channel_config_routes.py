@@ -12,9 +12,11 @@ Endpoints:
 
 from __future__ import annotations
 
+import base64
 import collections
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -129,6 +131,11 @@ DEFAULT_CONFIG: dict = {
     "discord": {
         "token": None,
     },
+    "wechat": {
+        "token": None,
+        "base_url": "https://ilinkai.weixin.qq.com",
+        "allow_from": [],
+    },
     "feishu": {
         "app_id": None,
         "app_secret": None,
@@ -196,6 +203,7 @@ def _write_config(new_cfg: dict) -> None:
     _SENSITIVE = [
         ("telegram", "token"),
         ("discord", "token"),
+        ("wechat", "token"),
         ("feishu", "app_secret"),
         ("feishu", "verification_token"),
         ("feishu", "encrypt_key"),
@@ -263,6 +271,30 @@ def _looks_masked(s: Optional[str]) -> bool:
     return "****" in s
 
 
+def _random_wechat_uin() -> str:
+    value = secrets.randbits(32)
+    return base64.b64encode(str(value).encode("utf-8")).decode("ascii")
+
+
+def _ilink_headers(body: str, *, token: Optional[str] = None) -> dict[str, str]:
+    headers = {
+        "Content-Type": "application/json",
+        "AuthorizationType": "ilink_bot_token",
+        "X-WECHAT-UIN": _random_wechat_uin(),
+        "Content-Length": str(len(body.encode("utf-8"))),
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _resolve_wechat_base_url(body: dict[str, object], cfg: dict) -> str:
+    custom = str(body.get("base_url") or cfg.get("wechat", {}).get("base_url") or "").strip()
+    if not custom:
+        custom = "https://ilinkai.weixin.qq.com"
+    return custom.rstrip("/")
+
+
 def _set_channel_state(channel: str, **state: object) -> dict:
     """Store the latest lifecycle state for a channel."""
     with _PROCESS_LOCK:
@@ -279,6 +311,8 @@ def _channel_configured(channel: str, cfg: dict) -> bool:
         return bool(cfg.get("telegram", {}).get("token"))
     if channel == "discord":
         return bool(cfg.get("discord", {}).get("token"))
+    if channel == "wechat":
+        return bool(cfg.get("wechat", {}).get("token"))
     if channel == "feishu":
         feishu_cfg = cfg.get("feishu", {})
         return bool(feishu_cfg.get("app_id") and feishu_cfg.get("app_secret"))
@@ -320,6 +354,15 @@ def _build_start_command(channel: str, cfg: dict, api_key: str) -> list[str]:
         if not dc.get("token"):
             raise RuntimeError("Discord token not configured — save config first")
         cmd += ["--discord-token", dc["token"]]
+    elif channel == "wechat":
+        wc = cfg.get("wechat", {})
+        if not wc.get("token"):
+            raise RuntimeError("WeChat token not configured — save config first")
+        cmd += ["--wechat-token", wc["token"]]
+        if wc.get("base_url"):
+            cmd += ["--wechat-base-url", wc["base_url"]]
+        for user_id in wc.get("allow_from") or []:
+            cmd += ["--wechat-allow-from", str(user_id)]
     elif channel == "feishu":
         fc = cfg.get("feishu", {})
         if not fc.get("app_id") or not fc.get("app_secret"):
@@ -471,7 +514,7 @@ def list_channel_states() -> list[dict]:
     with _PROCESS_LOCK:
         _refresh_channel_states_locked()
         snapshot: list[dict] = []
-        for channel in ("telegram", "discord", "feishu", "qq", "imessage"):
+        for channel in ("telegram", "discord", "wechat", "feishu", "qq", "imessage"):
             if channel in managed:
                 snapshot.append(managed[channel])
                 continue
@@ -503,7 +546,7 @@ def auto_start_configured_channels() -> list[dict]:
             results.extend(manager.auto_start_configured(cfg, api_key=api_key))
         except Exception as exc:
             results.append({"ok": False, "error": str(exc), "source": "in-process"})
-    for channel in ("telegram", "discord", "feishu", "qq", "imessage"):
+    for channel in ("telegram", "discord", "wechat", "feishu", "qq", "imessage"):
         if manager is not None and manager.supports(channel):
             continue
         if not _channel_configured(channel, cfg):
@@ -557,6 +600,7 @@ def get_config():
     _SECRET_FIELDS = [
         ("telegram", "token"),
         ("discord", "token"),
+        ("wechat", "token"),
         ("feishu", "app_secret"),
         ("feishu", "verification_token"),
         ("feishu", "encrypt_key"),
@@ -642,6 +686,43 @@ def test_channel(channel: str):
                 })
             return jsonify({"ok": False, "error": data.get("message", "Discord auth failed")})
 
+        elif channel == "wechat":
+            token = body.get("token") or cfg.get("wechat", {}).get("token") or ""
+            base_url = body.get("base_url") or cfg.get("wechat", {}).get("base_url") or "https://ilinkai.weixin.qq.com"
+            if not token:
+                return jsonify({"ok": False, "error": "No WeChat token configured"})
+            payload = {
+                "get_updates_buf": "",
+                "base_info": {"channel_version": "gateway-test"},
+            }
+            body_text = json.dumps(payload, ensure_ascii=False)
+            headers = {
+                "Content-Type": "application/json",
+                "AuthorizationType": "ilink_bot_token",
+                "Authorization": f"Bearer {token}",
+                "X-WECHAT-UIN": "MTIzNDU2",
+                "Content-Length": str(len(body_text.encode("utf-8"))),
+            }
+            try:
+                resp = requests.post(
+                    f"{str(base_url).rstrip('/')}/ilink/bot/getupdates",
+                    data=body_text.encode("utf-8"),
+                    headers=headers,
+                    timeout=(5, 2),
+                )
+                data = resp.json()
+                if resp.ok and (data.get("ret") in (None, 0)) and (data.get("errcode") in (None, 0)):
+                    return jsonify({
+                        "ok": True,
+                        "message": "✓ WeChat iLink auth OK",
+                    })
+                return jsonify({"ok": False, "error": data.get("errmsg", "WeChat auth failed")})
+            except requests.exceptions.ReadTimeout:
+                return jsonify({
+                    "ok": True,
+                    "message": "✓ WeChat endpoint reachable — long-poll pending, start the channel to verify inbound events",
+                })
+
         elif channel == "feishu":
             app_id = body.get("app_id") or cfg.get("feishu", {}).get("app_id") or ""
             app_secret = body.get("app_secret") or cfg.get("feishu", {}).get("app_secret") or ""
@@ -703,10 +784,75 @@ def test_channel(channel: str):
         return jsonify({"ok": False, "error": str(e)})
 
 
+@channel_config_bp.route("/wechat/login/qr", methods=["POST"])
+def wechat_login_qr():
+    body = request.get_json(silent=True) or {}
+    cfg = _read_config()
+    base_url = _resolve_wechat_base_url(body, cfg)
+    try:
+        headers = _ilink_headers("{}", token=None)
+        resp = requests.get(
+            f"{base_url}/ilink/bot/get_bot_qrcode",
+            params={"bot_type": "3"},
+            headers=headers,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        img_content = data.get("qrcode_img_content") or ""
+        img_src = f"data:image/png;base64,{img_content}" if img_content else ""
+        return jsonify({
+            "ok": True,
+            "qrcode": data.get("qrcode") or "",
+            "image": img_src,
+            "message": data.get("message"),
+        })
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"ok": False, "error": f"QR request failed: {exc}"})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
+
+@channel_config_bp.route("/wechat/login/status", methods=["GET"])
+def wechat_login_status():
+    qrcode = request.args.get("qrcode", "")
+    if not qrcode:
+        return jsonify({"ok": False, "error": "qrcode is required"}), 400
+    cfg = _read_config()
+    base_url = _resolve_wechat_base_url(request.args, cfg)
+    try:
+        headers = _ilink_headers("{}", token=None)
+        resp = requests.get(
+            f"{base_url}/ilink/bot/get_qrcode_status",
+            params={"qrcode": qrcode},
+            headers=headers,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        status = str(data.get("status") or "").lower()
+        if status == "confirmed":
+            return jsonify({
+                "ok": True,
+                "status": "confirmed",
+                "bot_token": data.get("bot_token"),
+                "baseurl": data.get("baseurl"),
+            })
+        return jsonify({
+            "ok": True,
+            "status": status or "pending",
+            "message": data.get("message", ""),
+        })
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"ok": False, "error": f"Status request failed: {exc}"})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
+
 @channel_config_bp.route("/<channel>/start", methods=["POST"])
 def start_channel(channel: str):
     """Start a channel bot in-process when supported, else as a subprocess."""
-    if channel not in ("telegram", "discord", "feishu", "qq", "imessage"):
+    if channel not in ("telegram", "discord", "wechat", "feishu", "qq", "imessage"):
         return jsonify({"ok": False, "error": f"Unknown channel: {channel}"}), 400
 
     cfg = _read_config()

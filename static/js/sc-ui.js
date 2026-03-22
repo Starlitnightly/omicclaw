@@ -1357,9 +1357,10 @@ Object.assign(SingleCellAnalysis.prototype, {
         const channels = [
             { id: 'telegram',  label: this.t('gateway.channel.telegram'),  icon: 'feather-send',      color: '#2AABEE' },
             { id: 'discord',   label: this.t('gateway.channel.discord'),   icon: 'feather-hash',      color: '#5865F2' },
+            { id: 'wechat',    label: this.t('gateway.channel.wechat'),    icon: 'feather-message-circle', color: '#07C160' },
             { id: 'feishu',    label: this.t('gateway.channel.feishu'), icon: 'feather-feather', color: '#3370FF' },
             { id: 'qq',        label: this.t('gateway.channel.qq'),    icon: 'feather-message-square', color: '#1AABE6' },
-            { id: 'imessage',  label: this.t('gateway.channel.imessage'),  icon: 'feather-message-circle', color: '#34C759' },
+            { id: 'imessage',  label: this.t('gateway.channel.imessage'),  icon: 'feather-smartphone', color: '#34C759' },
         ];
         const el = document.getElementById('gw-channel-cards');
         if (!el) return;
@@ -1488,6 +1489,17 @@ Object.assign(SingleCellAnalysis.prototype, {
             ${secret('token',this.t('gateway.discord.token'),'discord',this.t('gateway.discord.tokenHint'))}
         </div>`;
 
+        if (ch === 'wechat') return `<div class="row g-2">
+            ${secret('token',this.t('gateway.wechat.token'),'wechat',this.t('gateway.wechat.tokenHint'))}
+            ${field('base_url',this.t('gateway.wechat.baseUrl'),'text', cfg.base_url||'https://ilinkai.weixin.qq.com', 'https://ilinkai.weixin.qq.com', this.t('gateway.wechat.baseUrlHint'))}
+            ${field('allow_from',this.t('gateway.wechat.allowFrom'),'text', (cfg.allow_from||[]).join(', '), 'user@im.wechat', this.t('gateway.wechat.allowFromHint'))}
+            <div class="col-12">
+                <button type="button" class="btn btn-sm btn-outline-primary w-100" onclick="event.stopPropagation(); singleCellApp.startWechatLogin();">
+                    <i class="feather-scan me-1"></i>${this.t('gateway.wechat.loginButton')}
+                </button>
+            </div>
+        </div>`;
+
         if (ch === 'feishu') return `<div class="row g-2">
             ${field('app_id',this.t('gateway.feishu.appId'),'text', cfg.app_id||'', 'cli_xxxxxxxxxx', '')}
             ${secret('app_secret',this.t('gateway.feishu.appSecret'),'feishu','Set FEISHU_APP_SECRET env var or enter here')}
@@ -1612,6 +1624,11 @@ Object.assign(SingleCellAnalysis.prototype, {
         if (ch === 'discord') return {
             token: val('token'),
         };
+        if (ch === 'wechat') return {
+            token: val('token'),
+            base_url: val('base_url'),
+            allow_from: (val('allow_from') || '').split(',').map(s => s.trim()).filter(Boolean),
+        };
         if (ch === 'feishu') return {
             app_id: val('app_id'), app_secret: val('app_secret'),
             connection_mode: val('connection_mode'),
@@ -1641,6 +1658,131 @@ Object.assign(SingleCellAnalysis.prototype, {
         state.resultHTML = el.innerHTML;
         state.resultVisible = true;
         if (window.feather) feather.replace({ 'stroke-width': 2 });
+    },
+
+    _wechatLoginDialogEl: null,
+    _wechatLoginPoller: null,
+
+    startWechatLogin() {
+        const cfg = this._getChannelFormValues('wechat');
+        const baseUrl = cfg.base_url || 'https://ilinkai.weixin.qq.com';
+        const resultEl = document.getElementById('gw-ch-result-wechat');
+        if (resultEl) {
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = `<span class="text-info"><i class="feather-loader me-1"></i>${this.t('gateway.wechat.loginFetching')}</span>`;
+        }
+        fetch('/api/gateway/channels/wechat/login/qr', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ base_url: baseUrl }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) throw new Error(data.error || this.t('gateway.saveFailed'));
+            this._showWechatLoginDialog(data, baseUrl);
+        })
+        .catch(err => {
+            this._showChResult('wechat', false, err.message);
+        });
+    },
+
+    _showWechatLoginDialog(payload, baseUrl) {
+        const dialog = this._ensureWechatLoginDialog();
+        const img = dialog.querySelector('.gw-wechat-qr-img');
+        const status = dialog.querySelector('.gw-wechat-qr-status');
+        const helper = dialog.querySelector('.gw-wechat-qr-helper');
+        img.src = payload.image || '';
+        dialog.dataset.qrcode = payload.qrcode || '';
+        dialog.dataset.baseUrl = baseUrl;
+        status.textContent = this.t('gateway.wechat.loginScanning');
+        helper.textContent = payload.message || this.t('gateway.wechat.loginHint');
+        dialog.style.display = 'flex';
+        this._startWechatLoginPoll(payload.qrcode, baseUrl);
+    },
+
+    _ensureWechatLoginDialog() {
+        if (this._wechatLoginDialogEl) return this._wechatLoginDialogEl;
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,16,26,0.6);display:flex;justify-content:center;align-items:center;z-index:1050;padding:1rem;';
+        overlay.id = 'gw-wechat-login-modal';
+        overlay.innerHTML = `
+            <div class="card shadow" style="max-width:380px;width:100%;border:none;">
+                <div class="card-body p-3 text-center position-relative">
+                    <button type="button" class="btn-close position-absolute top-0 end-0 me-2 mt-2" aria-label="Close" onclick="singleCellApp._hideWechatLoginDialog()"></button>
+                    <h5 class="card-title">${this.t('gateway.wechat.loginTitle')}</h5>
+                    <img class="gw-wechat-qr-img my-3" src="" alt="WeChat QR" style="width:220px;height:220px;object-fit:contain;">
+                    <div class="fw-semibold gw-wechat-qr-status mb-1">${this.t('gateway.wechat.loginPrompt')}</div>
+                    <div class="text-muted small gw-wechat-qr-helper">${this.t('gateway.wechat.loginHint')}</div>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        this._wechatLoginDialogEl = overlay;
+        return overlay;
+    },
+
+    _startWechatLoginPoll(qrcode, baseUrl) {
+        if (!qrcode) return;
+        this._clearWechatLoginPoll();
+        const statusEl = this._wechatLoginDialogEl?.querySelector('.gw-wechat-qr-status');
+        const helperEl = this._wechatLoginDialogEl?.querySelector('.gw-wechat-qr-helper');
+        const poll = () => {
+            fetch(`/api/gateway/channels/wechat/login/status?qrcode=${encodeURIComponent(qrcode)}&base_url=${encodeURIComponent(baseUrl)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.ok) {
+                        if (statusEl) statusEl.textContent = this.t('gateway.wechat.loginError');
+                        if (helperEl) helperEl.textContent = data.error || '';
+                        this._clearWechatLoginPoll();
+                        return;
+                    }
+                    if (statusEl) {
+                        let text = this.t('gateway.wechat.loginStatus');
+                        if (data.status) text = text.replace('{status}', data.status);
+                        statusEl.textContent = text;
+                    }
+                    if (data.status === 'confirmed') {
+                        this._clearWechatLoginPoll();
+                        this._applyWechatLoginResult(data);
+                        this._hideWechatLoginDialog();
+                    }
+                })
+                .catch(() => {
+                    if (statusEl) statusEl.textContent = this.t('gateway.wechat.loginError');
+                    this._clearWechatLoginPoll();
+                });
+        };
+        poll();
+        this._wechatLoginPoller = setInterval(poll, 1500);
+    },
+
+    _clearWechatLoginPoll() {
+        if (this._wechatLoginPoller) {
+            clearInterval(this._wechatLoginPoller);
+            this._wechatLoginPoller = null;
+        }
+    },
+
+    _hideWechatLoginDialog() {
+        this._clearWechatLoginPoll();
+        if (this._wechatLoginDialogEl) {
+            this._wechatLoginDialogEl.style.display = 'none';
+        }
+    },
+
+    _applyWechatLoginResult(data) {
+        const tokenField = document.getElementById('gw-field-wechat-token');
+        if (tokenField && data.bot_token) tokenField.value = data.bot_token;
+        const baseField = document.getElementById('gw-field-wechat-base_url');
+        if (baseField && data.baseurl) baseField.value = data.baseurl;
+        this._gwSecretsSet = this._gwSecretsSet || {};
+        this._gwSecretsSet['wechat__token'] = true;
+        this._gwConfig = this._gwConfig || {};
+        this._gwConfig.wechat = this._gwConfig.wechat || {};
+        if (data.bot_token) this._gwConfig.wechat.token = data.bot_token;
+        if (data.baseurl) this._gwConfig.wechat.base_url = data.baseurl;
+        this._showChResult('wechat', true, this.t('gateway.wechat.loginSuccess'));
+        const state = this._ensureChannelUIState('wechat');
+        state.formValues = this._getChannelFormValues('wechat');
     },
 
     saveLLMConfig() {
