@@ -74,7 +74,9 @@ Object.assign(SingleCellAnalysis.prototype, {
             }
         });
         // Initialize session
-        this._ensureAgentSession();
+        const _sid = this._ensureAgentSession();
+        // Restore history for the current session (no-op if workspace doesn't exist yet)
+        this._restoreConversationHistory(_sid).catch(() => {});
         this._initializeAgentHarness();
     },
 
@@ -1521,7 +1523,98 @@ Object.assign(SingleCellAnalysis.prototype, {
         } catch (_) {}
     },
 
-    /** Render conversation items into #conv-list-container. */
+    /** Parse [channel] prefix from a conversation title.
+     *  Returns { channel, displayTitle } — channel is '' for web sessions. */
+    _parseConvTitle(raw) {
+        if (raw && raw.startsWith('[')) {
+            const end = raw.indexOf(']');
+            if (end > 1) {
+                return { channel: raw.slice(1, end).toLowerCase(), displayTitle: raw.slice(end + 2) };
+            }
+        }
+        return { channel: '', displayTitle: raw };
+    },
+
+    /** Return a small colored badge HTML for a channel name, or '' for web. */
+    _channelBadge(channel) {
+        const map = {
+            telegram:  ['#2AABEE', 'TG'],
+            wechat:    ['#07C160', 'WX'],
+            qq:        ['#1EAFED', 'QQ'],
+            feishu:    ['#3370FF', 'FS'],
+            discord:   ['#5865F2', 'DC'],
+            imessage:  ['#34C759', 'iM'],
+        };
+        const info = map[channel];
+        if (!info) return '';
+        const [color, label] = info;
+        return `<span style="flex-shrink:0;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:${color};color:#fff;margin-right:4px;">${label}</span>`;
+    },
+
+    /** Build a single conv-item element. */
+    _buildConvItem(conv) {
+        const id = conv.session_id || '';
+        const rawTitle = conv.title || id.slice(0, 12);
+        const { channel, displayTitle } = this._parseConvTitle(rawTitle);
+        const isActive = id === this._agentSessionId;
+
+        const item = document.createElement('a');
+        item.href = 'javascript:void(0);';
+        item.className = 'conv-item' + (isActive ? ' active' : '');
+        item.dataset.id = id;
+
+        item.innerHTML = `
+            ${this._channelBadge(channel) || '<i class="feather-message-square" style="flex-shrink:0;font-size:13px;"></i>'}
+            <span class="conv-title" title="${this._escHtml(rawTitle)}">${this._escHtml(displayTitle || rawTitle)}</span>
+            <span class="conv-actions">
+                <button onclick="event.stopPropagation();singleCellApp._renameConversation('${id}', this.closest('.conv-item').querySelector('.conv-title'))" title="Rename">✏️</button>
+                <button onclick="event.stopPropagation();singleCellApp._deleteConversation('${id}')" title="Delete">🗑️</button>
+            </span>`;
+
+        item.addEventListener('click', () => this.switchConversation(id));
+        return item;
+    },
+
+    /** Render a collapsible section into a container element. */
+    _renderConvSection(container, labelHtml, sectionKey, convs) {
+        if (!convs.length) return;
+
+        const storageKey = `omicverse.convSection.${sectionKey}`;
+        const isCollapsed = sessionStorage.getItem(storageKey) === '1';
+
+        const section = document.createElement('div');
+        section.className = 'conv-section' + (isCollapsed ? ' collapsed' : '');
+        section.dataset.sectionKey = sectionKey;
+
+        const header = document.createElement('div');
+        header.className = 'conv-section-header';
+        header.innerHTML = `<span>${labelHtml}</span><span class="conv-section-toggle">▾</span>`;
+        header.addEventListener('click', () => {
+            const collapsed = section.classList.toggle('collapsed');
+            sessionStorage.setItem(storageKey, collapsed ? '1' : '0');
+        });
+
+        const body = document.createElement('div');
+        body.className = 'conv-section-body';
+        for (const conv of convs) {
+            body.appendChild(this._buildConvItem(conv));
+        }
+
+        section.appendChild(header);
+        section.appendChild(body);
+        container.appendChild(section);
+    },
+
+    /** Channel display names for section headers. */
+    _channelLabel(ch) {
+        const names = {
+            telegram: 'Telegram', wechat: 'WeChat', qq: 'QQ',
+            feishu: 'Feishu', discord: 'Discord', imessage: 'iMessage',
+        };
+        return names[ch] || ch;
+    },
+
+    /** Render conversation items into #conv-list-container, grouped by source. */
     _renderConvList(list) {
         const container = document.getElementById('conv-list-container');
         if (!container) return;
@@ -1531,27 +1624,39 @@ Object.assign(SingleCellAnalysis.prototype, {
             return;
         }
 
-        container.innerHTML = '';
+        // Partition into Web vs per-channel groups
+        const webConvs = [];
+        // Use Map to preserve insertion order
+        const channelMap = new Map();
+        const channelOrder = ['telegram', 'wechat', 'qq', 'feishu', 'discord', 'imessage'];
+
         for (const conv of list) {
-            const id = conv.session_id || '';
-            const title = conv.title || id.slice(0, 12);
-            const isActive = id === this._agentSessionId;
+            const rawTitle = conv.title || (conv.session_id || '').slice(0, 12);
+            const { channel } = this._parseConvTitle(rawTitle);
+            if (channel) {
+                if (!channelMap.has(channel)) channelMap.set(channel, []);
+                channelMap.get(channel).push(conv);
+            } else {
+                webConvs.push(conv);
+            }
+        }
 
-            const item = document.createElement('a');
-            item.href = 'javascript:void(0);';
-            item.className = 'conv-item' + (isActive ? ' active' : '');
-            item.dataset.id = id;
+        container.innerHTML = '';
 
-            item.innerHTML = `
-                <i class="feather-message-square" style="flex-shrink:0;font-size:13px;"></i>
-                <span class="conv-title" title="${this._escHtml(title)}">${this._escHtml(title)}</span>
-                <span class="conv-actions">
-                    <button onclick="event.stopPropagation();singleCellApp._renameConversation('${id}', this.closest('.conv-item').querySelector('.conv-title'))" title="Rename">✏️</button>
-                    <button onclick="event.stopPropagation();singleCellApp._deleteConversation('${id}')" title="Delete">🗑️</button>
-                </span>`;
+        // Web section
+        this._renderConvSection(container, 'Web', 'web', webConvs);
 
-            item.addEventListener('click', () => this.switchConversation(id));
-            container.appendChild(item);
+        // Channel sections — known channels first, then unknown
+        const orderedChannels = [
+            ...channelOrder.filter(ch => channelMap.has(ch)),
+            ...[...channelMap.keys()].filter(ch => !channelOrder.includes(ch)),
+        ];
+        for (const ch of orderedChannels) {
+            const badge = this._channelBadge(ch);
+            const label = badge
+                ? `${badge}<span>${this._channelLabel(ch)}</span>`
+                : this._channelLabel(ch);
+            this._renderConvSection(container, label, `ch_${ch}`, channelMap.get(ch));
         }
     },
 
@@ -1568,10 +1673,11 @@ Object.assign(SingleCellAnalysis.prototype, {
     async newConversation() {
         this.stopAgentStream();
         try {
+            const newId = this._generateSessionId();
             const resp = await fetch('/api/conversations/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
+                body: JSON.stringify({ session_id: newId }),
             });
             if (!resp.ok) throw new Error(`Create failed: ${resp.status}`);
             const data = await resp.json();

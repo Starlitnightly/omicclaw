@@ -138,9 +138,7 @@ def delete_conversation(session_id):
     if sm is not None:
         sm.delete_session(session_id)
 
-    ok = _wm().delete(session_id)
-    if not ok:
-        return jsonify({"error": "Delete failed or conversation not found"}), 404
+    _wm().delete(session_id)
     return jsonify({"deleted": session_id})
 
 

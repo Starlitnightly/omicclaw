@@ -212,6 +212,29 @@ class WorkspaceManager:
             logger.exception("workspace_save_artifact_failed", extra={"session_id": session_id})
             return None
 
+    def cleanup_empty(self) -> int:
+        """Delete workspace entries that have no saved messages.
+
+        Called once at server startup to remove sessions that were created
+        (e.g. by clicking 'New conversation') but never had any messages sent.
+        Returns the number of entries removed.
+        """
+        removed = 0
+        for entry in list(self._read_index()):
+            sid = entry.get("session_id", "")
+            if not sid:
+                continue
+            history_path = self._history_path(sid)
+            # No history file → empty; or history file exists but is blank
+            is_empty = (
+                not history_path.exists()
+                or history_path.read_text().strip() == ""
+            )
+            if is_empty:
+                self.delete(sid)
+                removed += 1
+        return removed
+
     def list_outputs(self, session_id: str) -> list:
         """Return file info dicts for all files in outputs/."""
         return self._list_dir(session_id, self.outputs_dir(session_id), "outputs")

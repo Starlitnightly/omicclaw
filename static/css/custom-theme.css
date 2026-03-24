@@ -1434,6 +1434,51 @@ html.app-skin-dark .skills-empty-icon {
   color: #333;
 }
 
+/* Conversation section headers (Web / Channel groups) */
+.conv-section {
+  margin-top: 2px;
+}
+
+.conv-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 1rem 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+.conv-section-header:first-child {
+  border-top: none;
+}
+
+.conv-section-header:hover {
+  color: #555;
+}
+
+.conv-section-toggle {
+  font-size: 0.6rem;
+  transition: transform 0.15s;
+}
+
+.conv-section.collapsed .conv-section-toggle {
+  transform: rotate(-90deg);
+}
+
+.conv-section-body {
+  overflow: hidden;
+}
+
+.conv-section.collapsed .conv-section-body {
+  display: none;
+}
+
 /* details/summary collapsible config */
 #agent-config-details > summary::-webkit-details-marker { display: none; }
 #agent-config-details > summary { user-select: none; }

@@ -686,6 +686,7 @@ def stream_agent_events(
         "summary": "",    # final summary from done event
         "trace_id": "",
         "approval_ids": [],
+        "_turn_started_at": t0,   # turn wall-clock start (for figure harvesting)
     }
 
     logger.info("agent_stream_sse_start", extra={

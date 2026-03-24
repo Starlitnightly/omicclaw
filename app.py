@@ -315,11 +315,21 @@ try:
     _jarvis_cfg = _read_config()
     _jarvis_api_key = _read_api_key()
 
+    def _save_figures(session_id, figures):
+        """Save a list of PNG bytes to workspace outputs/."""
+        if not figures:
+            return
+        import time as _time
+        ts = int(_time.time() * 1000)
+        for i, png_bytes in enumerate(figures):
+            if isinstance(png_bytes, bytes) and png_bytes:
+                workspace_manager.save_figure(session_id, png_bytes, name=f"{ts}_{i}")
+
     class _WorkspaceBridge(WebSessionBridge):
         """WebSessionBridge extended to persist each channel turn to disk."""
 
-        def on_turn_complete(self, route, user_text, llm_text, adata=None):
-            super().on_turn_complete(route, user_text, llm_text, adata)
+        def on_turn_complete(self, route, user_text, llm_text, adata=None, figures=None):
+            super().on_turn_complete(route, user_text, llm_text, adata, figures=figures)
             try:
                 sid = self.session_id_for_conversation_route(route)
                 web_session = self._sm.get_session(sid)
@@ -327,14 +337,17 @@ try:
                     title = f"[{route.channel}] {user_text[:20]}"
                     workspace_manager.get_or_create(sid, title=title)
                     workspace_manager.save_history(sid, web_session.get_history_dicts())
+                    _save_figures(sid, figures)
                     workspace_manager.touch(sid)
             except Exception:
                 pass
 
         def on_turn_complete_simple(self, channel, scope_type, scope_id,
-                                    user_text, llm_text, adata=None, thread_id=None):
+                                    user_text, llm_text, adata=None, thread_id=None,
+                                    figures=None):
             super().on_turn_complete_simple(
-                channel, scope_type, scope_id, user_text, llm_text, adata, thread_id
+                channel, scope_type, scope_id, user_text, llm_text, adata, thread_id,
+                figures=figures,
             )
             try:
                 from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
@@ -344,6 +357,7 @@ try:
                     title = f"[{channel}] {user_text[:20]}"
                     workspace_manager.get_or_create(sid, title=title)
                     workspace_manager.save_history(sid, web_session.get_history_dicts())
+                    _save_figures(sid, figures)
                     workspace_manager.touch(sid)
             except Exception:
                 pass
@@ -3140,6 +3154,27 @@ def agent_chat_stream():
     session = session_manager.get_or_create(session_id, base_adata=state.current_adata)
     current_adata = session.adata if session.adata is not None else state.current_adata
 
+    # If this is a freshly created session with no history, restore from workspace.
+    # This handles the case where the user sends a message before POST /api/agent/session
+    # completes (fire-and-forget race), or when the server was restarted.
+    if not session.history:
+        _saved = workspace_manager.load_history(session_id)
+        if _saved:
+            from services.agent_session_service import ChatMessage as _CM
+            for _m in _saved:
+                session.history.append(_CM(
+                    role=_m.get('role', 'user'),
+                    content=_m.get('content', ''),
+                    turn_id=_m.get('turn_id', ''),
+                    timestamp=_m.get('timestamp', 0.0),
+                ))
+        if session.workspace_dir is None:
+            _ws_meta = workspace_manager.get_meta(session_id)
+            if _ws_meta is not None:
+                session.workspace_dir = str(workspace_manager.workspace_dir(session_id))
+                if not session.title and _ws_meta.get('title'):
+                    session.title = _ws_meta['title']
+
     # Record user message in session history
     session.add_message("user", prompt)
 
@@ -3194,6 +3229,17 @@ def agent_chat_stream():
         # Persist history and touch workspace
         workspace_manager.save_history(session_id, session.get_history_dicts())
         workspace_manager.touch(session_id)
+
+        # Harvest and save figures generated during this turn
+        try:
+            from omicverse.jarvis.agent_bridge import AgentBridge as _AB  # type: ignore[import]
+            _bridge = _AB(agent, None, None)
+            _bridge._run_started_at = ctx.get('_turn_started_at', 0.0)
+            _figs = _bridge._harvest_figures(set())
+            for _i, _png in enumerate(_figs):
+                workspace_manager.save_figure(session_id, _png, name=f"turn_{_i}")
+        except Exception:
+            pass
 
     def _cleanup_turn(ctx):
         """Always runs — clear active turn tracking even on cancel."""
@@ -3273,11 +3319,13 @@ def agent_session_create():
 
     session = session_manager.create_session(session_id, base_adata=state.current_adata)
 
-    # Bind / create workspace for this session
-    ws_meta = workspace_manager.get_or_create(session_id, title=session.title)
-    session.workspace_dir = str(workspace_manager.workspace_dir(session_id))
-    if not session.title and ws_meta.get('title'):
-        session.title = ws_meta['title']
+    # Restore workspace only if it already exists — don't create an empty one on page load.
+    # The stream handler creates the workspace lazily on the first message.
+    ws_meta = workspace_manager.get_meta(session_id)
+    if ws_meta is not None:
+        session.workspace_dir = str(workspace_manager.workspace_dir(session_id))
+        if not session.title and ws_meta.get('title'):
+            session.title = ws_meta['title']
 
     # Restore persisted history if session has no history yet
     if not session.history:
@@ -3747,6 +3795,9 @@ def plot_gpu_colors():
 
 # Ensure default notebook exists
 ensure_default_notebook(state.file_root)
+
+# Remove empty conversations (created but no messages sent) left from previous runs
+workspace_manager.cleanup_empty()
 
 
 if __name__ == '__main__':
