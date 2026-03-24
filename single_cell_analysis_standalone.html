@@ -199,53 +199,70 @@
                     </li>
                 </ul>
                 <ul class="nxl-navbar" id="agent-config-nav" style="display: none;">
-                    <li class="nxl-item nxl-caption">
-                        <label data-i18n="agent.configTitle">Agent Configuration</label>
+                    <!-- Conversation management (top of sidebar) -->
+                    <li class="nxl-item nxl-caption d-flex justify-content-between align-items-center pe-3">
+                        <label data-i18n="agent.conversations">Conversations</label>
+                        <button class="btn btn-xs btn-icon btn-light-primary" onclick="singleCellApp.newConversation()" title="New conversation" style="width:22px;height:22px;padding:0;">
+                            <i class="feather-plus" style="font-size:12px;"></i>
+                        </button>
                     </li>
-                    <li class="nxl-item">
-                        <div class="px-3">
-                            <div class="mb-2">
-                                <label class="form-label mb-1" for="agent-api-base" data-i18n="agent.apiBase">API Base URL</label>
-                                <input type="text" class="form-control form-control-sm" id="agent-api-base" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label mb-1" for="agent-api-key" data-i18n="agent.apiKey">API Key</label>
-                                <input type="password" class="form-control form-control-sm" id="agent-api-key" placeholder="sk-...">
-                                <div class="form-check mt-1">
-                                    <input class="form-check-input" type="checkbox" id="agent-remember-key">
-                                    <label class="form-check-label small text-muted" for="agent-remember-key" data-i18n="agent.rememberKey">Remember key across sessions</label>
+                    <li class="nxl-item p-0" id="conv-list-container">
+                        <!-- Conversation list rendered dynamically by sc-agent.js -->
+                    </li>
+                    <li class="nxl-item"><hr class="my-1 mx-3"></li>
+
+                    <!-- Agent configuration (collapsible) -->
+                    <li class="nxl-item p-0">
+                        <details id="agent-config-details">
+                            <summary class="nxl-link px-3 py-2" style="cursor:pointer;list-style:none;display:flex;align-items:center;">
+                                <span class="nxl-micon"><i class="feather-settings"></i></span>
+                                <span class="nxl-mtext ms-2" data-i18n="agent.configTitle">Agent Configuration</span>
+                                <i class="feather-chevron-down ms-auto" style="font-size:14px;"></i>
+                            </summary>
+                            <div class="px-3 pb-2">
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-api-base" data-i18n="agent.apiBase">API Base URL</label>
+                                    <input type="text" class="form-control form-control-sm" id="agent-api-base" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1">
                                 </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-api-key" data-i18n="agent.apiKey">API Key</label>
+                                    <input type="password" class="form-control form-control-sm" id="agent-api-key" placeholder="sk-...">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input" type="checkbox" id="agent-remember-key">
+                                        <label class="form-check-label small text-muted" for="agent-remember-key" data-i18n="agent.rememberKey">Remember key across sessions</label>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-model" data-i18n="agent.model">Model</label>
+                                    <input type="text" class="form-control form-control-sm" id="agent-model" placeholder="Model name" data-i18n-placeholder="agent.modelPlaceholder" value="gpt-5">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-temperature" data-i18n="agent.temperature">Temperature</label>
+                                    <input type="number" class="form-control form-control-sm" id="agent-temperature" min="0" max="2" step="0.1" value="0.3">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-top-p" data-i18n="agent.topP">Top P</label>
+                                    <input type="number" class="form-control form-control-sm" id="agent-top-p" min="0" max="1" step="0.05" value="1">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-max-tokens" data-i18n="agent.maxTokens">Max Tokens</label>
+                                    <input type="number" class="form-control form-control-sm" id="agent-max-tokens" min="1" step="1" value="2048">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-timeout" data-i18n="agent.timeout">Timeout (s)</label>
+                                    <input type="number" class="form-control form-control-sm" id="agent-timeout" min="1" step="1" value="60">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-system-prompt" data-i18n="agent.systemPrompt">System Prompt</label>
+                                    <textarea class="form-control form-control-sm" id="agent-system-prompt" rows="3" placeholder="You are a single-cell analysis assistant..." data-i18n-placeholder="agent.systemPromptPlaceholder"></textarea>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-primary" type="button" onclick="singleCellApp.saveAgentConfig()" data-i18n="agent.save">Save</button>
+                                    <button class="btn btn-sm btn-light" type="button" onclick="singleCellApp.resetAgentConfig()" data-i18n="agent.reset">Reset</button>
+                                </div>
+                                <small class="text-muted d-block mt-2" data-i18n="agent.keyNotice">API key is stored in session memory only. Check "Remember" to persist across browser sessions.</small>
                             </div>
-                            <div class="mb-2">
-                                <label class="form-label mb-1" for="agent-model" data-i18n="agent.model">Model</label>
-                                <input type="text" class="form-control form-control-sm" id="agent-model" placeholder="Model name" data-i18n-placeholder="agent.modelPlaceholder" value="gpt-5">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label mb-1" for="agent-temperature" data-i18n="agent.temperature">Temperature</label>
-                                <input type="number" class="form-control form-control-sm" id="agent-temperature" min="0" max="2" step="0.1" value="0.3">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label mb-1" for="agent-top-p" data-i18n="agent.topP">Top P</label>
-                                <input type="number" class="form-control form-control-sm" id="agent-top-p" min="0" max="1" step="0.05" value="1">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label mb-1" for="agent-max-tokens" data-i18n="agent.maxTokens">Max Tokens</label>
-                                <input type="number" class="form-control form-control-sm" id="agent-max-tokens" min="1" step="1" value="2048">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label mb-1" for="agent-timeout" data-i18n="agent.timeout">Timeout (s)</label>
-                                <input type="number" class="form-control form-control-sm" id="agent-timeout" min="1" step="1" value="60">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label mb-1" for="agent-system-prompt" data-i18n="agent.systemPrompt">System Prompt</label>
-                                <textarea class="form-control form-control-sm" id="agent-system-prompt" rows="3" placeholder="You are a single-cell analysis assistant..." data-i18n-placeholder="agent.systemPromptPlaceholder"></textarea>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-primary" type="button" onclick="singleCellApp.saveAgentConfig()" data-i18n="agent.save">Save</button>
-                                <button class="btn btn-sm btn-light" type="button" onclick="singleCellApp.resetAgentConfig()" data-i18n="agent.reset">Reset</button>
-                            </div>
-                            <small class="text-muted d-block mt-2" data-i18n="agent.keyNotice">API key is stored in session memory only. Check "Remember" to persist across browser sessions.</small>
-                        </div>
+                        </details>
                     </li>
                 </ul>
                 <ul class="nxl-navbar" id="skills-store-nav" style="display: none;">

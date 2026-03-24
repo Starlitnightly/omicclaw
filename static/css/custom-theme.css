@@ -1371,3 +1371,70 @@ html.app-skin-dark .skills-empty-icon {
     padding-right: 1.15rem;
   }
 }
+
+/* ============================================================
+   Conversation list sidebar
+   ============================================================ */
+#conv-list-container {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.conv-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 1rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.82rem;
+  color: var(--bs-body-color, #333);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.conv-item:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.conv-item.active {
+  background: rgba(11, 122, 39, 0.12);
+  font-weight: 600;
+}
+
+.conv-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-actions {
+  display: none;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.conv-item:hover .conv-actions {
+  display: flex;
+}
+
+.conv-actions button {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #888;
+  line-height: 1;
+}
+
+.conv-actions button:hover {
+  color: #333;
+}
+
+/* details/summary collapsible config */
+#agent-config-details > summary::-webkit-details-marker { display: none; }
+#agent-config-details > summary { user-select: none; }
+#agent-config-details[open] .feather-chevron-down { transform: rotate(180deg); }

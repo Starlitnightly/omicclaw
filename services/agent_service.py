@@ -5,6 +5,7 @@ Manages OmicVerse AI agent for code generation and chat.
 """
 
 import json
+import os
 import re
 import time
 import queue
@@ -98,6 +99,24 @@ def get_agent_instance(config):
     model = config.get('model') or 'gpt-5'
     api_key = config.get('apiKey') or ''
     endpoint = config.get('apiBase') or None
+
+    # For Codex OAuth (ChatGPT backend): inject chatgpt_account_id from stored
+    # auth so agent_backend can include it in the chatgpt-account-id header.
+    # The access_token JWT may not embed chatgpt_account_id as a claim; instead
+    # openai_oauth.py stores it under tokens.account_id in ~/.ovjarvis/auth.json.
+    if endpoint and "chatgpt.com" in endpoint:
+        try:
+            from pathlib import Path as _Path
+            _auth_file = _Path.home() / ".ovjarvis" / "auth.json"
+            if _auth_file.exists():
+                _auth_data = json.loads(_auth_file.read_text())
+                _account_id = str(
+                    (_auth_data.get("tokens") or {}).get("account_id") or ""
+                ).strip()
+                if _account_id:
+                    os.environ["CHATGPT_ACCOUNT_ID"] = _account_id
+        except Exception:
+            pass
 
     # Use a hash of the API key for the signature so the full key is never
     # stored in a string that could appear in logs / tracebacks.

@@ -192,7 +192,11 @@ def sync_session(session_id: str):
     sm = _get_session_manager()
     # Import bridge locally to avoid circular import at module load time
     from gateway.context import ChannelContextBridge  # type: ignore[import]
-    bridge = ChannelContextBridge(session_manager=sm)
+    try:
+        from services.workspace_service import workspace_manager as _wm
+    except Exception:
+        _wm = None
+    bridge = ChannelContextBridge(session_manager=sm, workspace_manager=_wm)
     added = bridge.sync_from_channel(session_id, messages, overwrite=overwrite)
 
     session = sm.get_session(session_id)

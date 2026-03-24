@@ -6,6 +6,7 @@ Flask blueprint for AnnData file upload and data retrieval endpoints.
 
 import os
 import logging
+import shutil
 import numpy as np
 from flask import Blueprint, request, jsonify, send_file, make_response
 from werkzeug.utils import secure_filename
@@ -70,6 +71,17 @@ def upload_file():
         filename = secure_filename(file.filename)
         filepath = os.path.join(bp.upload_folder, filename)
         file.save(filepath)
+
+        # Copy to conversation workspace if session is provided
+        session_id = request.headers.get('X-Agent-Session-Id', '').strip()
+        _wm = getattr(bp, 'workspace_manager', None)
+        if session_id and _wm is not None:
+            try:
+                up_dir = _wm.uploads_dir(session_id)
+                up_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(filepath, up_dir / filename)
+            except Exception:
+                pass  # workspace copy is best-effort
 
         # Create high-performance data adaptor
         bp.state.current_adaptor = HighPerformanceAnndataAdaptor(filepath)

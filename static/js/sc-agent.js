@@ -98,7 +98,19 @@ Object.assign(SingleCellAnalysis.prototype, {
             }
         }
         this._updateSessionIndicator();
+        // Ensure server session + workspace exist (best-effort, fire-and-forget)
+        this._ensureServerSession(this._agentSessionId);
         return this._agentSessionId;
+    },
+
+    /** Create or restore server session and workspace for the given id. */
+    _ensureServerSession(sessionId) {
+        if (!sessionId) return;
+        fetch('/api/agent/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId }),
+        }).catch(() => {});
     },
 
     /** Update the session indicator in the UI. */
@@ -1418,6 +1430,14 @@ Object.assign(SingleCellAnalysis.prototype, {
         this._renderTracePreview();
 
         this._setAgentState('idle');
+
+        // Create workspace for new session and refresh list
+        fetch('/api/conversations/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: this._agentSessionId }),
+        }).catch(() => {});
+        setTimeout(() => this._loadConversations(), 300);
     },
 
     /** Reconnect a dropped turn by fetching buffered events. */
@@ -1485,6 +1505,220 @@ Object.assign(SingleCellAnalysis.prototype, {
         if (panel) {
             panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-    }
+    },
 
+    // =====================================================================
+    // Conversation management
+    // =====================================================================
+
+    /** Load all conversations from the server and render the sidebar list. */
+    async _loadConversations() {
+        try {
+            const resp = await fetch('/api/conversations/');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            this._renderConvList(data.conversations || []);
+        } catch (_) {}
+    },
+
+    /** Render conversation items into #conv-list-container. */
+    _renderConvList(list) {
+        const container = document.getElementById('conv-list-container');
+        if (!container) return;
+
+        if (!list || list.length === 0) {
+            container.innerHTML = '<div class="px-3 py-1 text-muted" style="font-size:0.78rem;">No conversations yet</div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        for (const conv of list) {
+            const id = conv.session_id || '';
+            const title = conv.title || id.slice(0, 12);
+            const isActive = id === this._agentSessionId;
+
+            const item = document.createElement('a');
+            item.href = 'javascript:void(0);';
+            item.className = 'conv-item' + (isActive ? ' active' : '');
+            item.dataset.id = id;
+
+            item.innerHTML = `
+                <i class="feather-message-square" style="flex-shrink:0;font-size:13px;"></i>
+                <span class="conv-title" title="${this._escHtml(title)}">${this._escHtml(title)}</span>
+                <span class="conv-actions">
+                    <button onclick="event.stopPropagation();singleCellApp._renameConversation('${id}', this.closest('.conv-item').querySelector('.conv-title'))" title="Rename">✏️</button>
+                    <button onclick="event.stopPropagation();singleCellApp._deleteConversation('${id}')" title="Delete">🗑️</button>
+                </span>`;
+
+            item.addEventListener('click', () => this.switchConversation(id));
+            container.appendChild(item);
+        }
+    },
+
+    /** Escape HTML for safe insertion. */
+    _escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    },
+
+    /** Create a brand-new conversation and switch to it. */
+    async newConversation() {
+        this.stopAgentStream();
+        try {
+            const resp = await fetch('/api/conversations/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            if (!resp.ok) throw new Error(`Create failed: ${resp.status}`);
+            const data = await resp.json();
+            if (!data.session_id) throw new Error('No session_id returned');
+            await this.switchConversation(data.session_id);
+        } catch (err) {
+            console.error('newConversation failed', err);
+        }
+    },
+
+    /** Switch the active conversation (clear UI, restore history). */
+    async switchConversation(newId) {
+        if (!newId) return;
+        this.stopAgentStream();
+
+        // Update session ID
+        this._agentSessionId = newId;
+        sessionStorage.setItem('omicverse.agentSessionId', newId);
+        this._updateSessionIndicator();
+
+        // Clear chat area
+        const container = document.getElementById('agent-messages');
+        if (container) {
+            container.innerHTML = '';
+            const greeting = document.createElement('div');
+            greeting.className = 'agent-message assistant';
+            greeting.textContent = this.t('agent.greeting');
+            container.appendChild(greeting);
+        }
+
+        // Reset runtime state
+        this._agentLlmText = '';
+        this._agentPendingBubble = null;
+        this._agentTurnId = null;
+        this._agentLastTraceId = null;
+        this._agentPendingApprovals = [];
+        this._agentPendingQuestions = [];
+        this._agentTasks = [];
+        this._agentRuntimeState = null;
+        this._agentTracePayload = null;
+        this._setAgentState('idle');
+
+        // Ensure server session exists
+        try {
+            await fetch('/api/agent/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: newId }),
+            });
+        } catch (_) {}
+
+        // Restore history from workspace
+        await this._restoreConversationHistory(newId);
+
+        // Re-render sidebar to highlight new active item
+        await this._loadConversations();
+
+        // Refresh harness
+        await this._initializeAgentHarness();
+    },
+
+    /** Restore conversation history from the workspace API. */
+    async _restoreConversationHistory(sessionId) {
+        try {
+            const resp = await fetch(`/api/conversations/${sessionId}`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const history = data.history || [];
+            if (!history.length) return;
+
+            const container = document.getElementById('agent-messages');
+            if (!container) return;
+
+            // Clear greeting, render history
+            container.innerHTML = '';
+            for (const msg of history) {
+                const div = document.createElement('div');
+                div.className = 'agent-message ' + (msg.role === 'user' ? 'user' : 'assistant');
+                div.textContent = msg.content || '';
+                container.appendChild(div);
+            }
+            container.scrollTop = container.scrollHeight;
+        } catch (_) {}
+    },
+
+    /** Inline-rename a conversation via contenteditable. */
+    _renameConversation(sessionId, titleEl) {
+        if (!titleEl) return;
+        titleEl.contentEditable = 'true';
+        titleEl.focus();
+        const range = document.createRange();
+        range.selectNodeContents(titleEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        const finish = async () => {
+            titleEl.contentEditable = 'false';
+            const newTitle = (titleEl.textContent || '').trim();
+            if (!newTitle) return;
+            try {
+                await fetch(`/api/conversations/${sessionId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: newTitle }),
+                });
+            } catch (_) {}
+            await this._loadConversations();
+        };
+
+        titleEl.addEventListener('blur', finish, { once: true });
+        titleEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+            if (e.key === 'Escape') { titleEl.blur(); }
+        }, { once: true });
+    },
+
+    /** Delete a conversation after confirmation. */
+    async _deleteConversation(sessionId) {
+        if (!confirm('Delete this conversation and all its files?')) return;
+        try {
+            await fetch(`/api/conversations/${sessionId}`, { method: 'DELETE' });
+        } catch (_) {}
+
+        // If we just deleted the active session, create a new one
+        if (sessionId === this._agentSessionId) {
+            await this.newConversation();
+        } else {
+            await this._loadConversations();
+        }
+    },
+
+});
+
+// Auto-load conversation list when agent panel is initialized, and poll for updates
+const _origSetupAgentChat = SingleCellAnalysis.prototype.setupAgentChat;
+Object.assign(SingleCellAnalysis.prototype, {
+    setupAgentChat() {
+        _origSetupAgentChat.call(this);
+        // Load conversation list after a brief delay so DOM is fully ready
+        setTimeout(() => this._loadConversations(), 400);
+        // Poll every 10s to pick up channel sessions arriving from outside the browser
+        setInterval(() => {
+            const nav = document.getElementById('agent-config-nav');
+            if (nav && nav.style.display !== 'none') {
+                this._loadConversations();
+            }
+        }, 10000);
+    }
 });

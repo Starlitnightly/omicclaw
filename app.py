@@ -33,11 +33,13 @@ from services.agent_service import (
     resolve_pending_approval, resolve_pending_question,
 )
 from services.agent_session_service import session_manager
+from services.workspace_service import workspace_manager
 from utils.notebook_helpers import ensure_default_notebook
 
 # Import blueprints
 from routes import kernel, files, data, notebooks, skills, account
 from routes.terminal import terminal_bp
+from routes.conversations import bp as conversations_bp
 from gateway.routes import gateway_bp
 from gateway.memory_routes import memory_bp
 from gateway.panel_routes import panel_bp
@@ -273,6 +275,7 @@ files.bp.file_root = state.file_root
 app.register_blueprint(data.bp, url_prefix='/api')
 data.bp.state = state
 data.bp.upload_folder = app.config['UPLOAD_FOLDER']
+data.bp.workspace_manager = workspace_manager
 
 # Notebooks blueprint
 app.register_blueprint(notebooks.bp, url_prefix='/api/notebooks')
@@ -284,6 +287,11 @@ app.register_blueprint(skills.bp, url_prefix='/api/skills')
 # Account blueprint
 app.register_blueprint(account.bp, url_prefix='/api/account')
 
+# Conversations / workspace blueprint
+app.register_blueprint(conversations_bp, url_prefix='/api/conversations')
+conversations_bp.workspace_manager = workspace_manager
+conversations_bp.session_manager = session_manager
+
 # Terminal blueprint (PTY-based interactive shell)
 app.register_blueprint(terminal_bp)
 
@@ -292,6 +300,80 @@ app.register_blueprint(gateway_bp, url_prefix="/api/gateway")
 app.register_blueprint(memory_bp, url_prefix="/api/gateway/memory")
 app.register_blueprint(panel_bp, url_prefix="/gateway/panel")
 app.register_blueprint(channel_config_bp, url_prefix="/api/gateway/channels")
+
+# ---------------------------------------------------------------------------
+# In-process channel manager — run Telegram/WeChat/etc. as threads inside
+# this process so their turns land in the same session_manager (and thus
+# appear in the Agent sidebar) instead of isolated subprocesses.
+# ---------------------------------------------------------------------------
+try:
+    from gateway.channel_config_routes import _read_config, _read_api_key
+    from gateway.inprocess_channel_manager import InProcessChannelManager
+    from omicverse.jarvis.session import SessionManager as _JarvisSM  # type: ignore[import]
+    from omicverse.jarvis.gateway.web_bridge import WebSessionBridge  # type: ignore[import]
+
+    _jarvis_cfg = _read_config()
+    _jarvis_api_key = _read_api_key()
+
+    class _WorkspaceBridge(WebSessionBridge):
+        """WebSessionBridge extended to persist each channel turn to disk."""
+
+        def on_turn_complete(self, route, user_text, llm_text, adata=None):
+            super().on_turn_complete(route, user_text, llm_text, adata)
+            try:
+                sid = self.session_id_for_conversation_route(route)
+                web_session = self._sm.get_session(sid)
+                if web_session is not None:
+                    title = f"[{route.channel}] {user_text[:20]}"
+                    workspace_manager.get_or_create(sid, title=title)
+                    workspace_manager.save_history(sid, web_session.get_history_dicts())
+                    workspace_manager.touch(sid)
+            except Exception:
+                pass
+
+        def on_turn_complete_simple(self, channel, scope_type, scope_id,
+                                    user_text, llm_text, adata=None, thread_id=None):
+            super().on_turn_complete_simple(
+                channel, scope_type, scope_id, user_text, llm_text, adata, thread_id
+            )
+            try:
+                from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
+                sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
+                web_session = self._sm.get_session(sid)
+                if web_session is not None:
+                    title = f"[{channel}] {user_text[:20]}"
+                    workspace_manager.get_or_create(sid, title=title)
+                    workspace_manager.save_history(sid, web_session.get_history_dicts())
+                    workspace_manager.touch(sid)
+            except Exception:
+                pass
+
+    class _LiveConfigJarvisSM(_JarvisSM):
+        """Jarvis SessionManager that re-reads LLM config from disk each time
+        a new agent is built — so changing the API key / model in the Agent
+        panel takes effect for channels immediately, matching the Agent chat
+        window's per-request config loading behaviour."""
+
+        def _build_agent(self, kernel_root):
+            cfg = _read_config()
+            self._model = cfg.get("model") or "gpt-4o"
+            self._api_key = _read_api_key() or ""
+            self._endpoint = cfg.get("endpoint") or ""
+            return super()._build_agent(kernel_root)
+
+    _web_bridge = _WorkspaceBridge(session_manager)
+    _jarvis_sm = _LiveConfigJarvisSM(
+        model=_jarvis_cfg.get("model") or "gpt-4o",
+        api_key=_jarvis_api_key or "",
+        endpoint=_jarvis_cfg.get("endpoint") or "",
+        gateway_web_bridge=_web_bridge,
+    )
+    _channel_manager = InProcessChannelManager(_jarvis_sm)
+    app.config["GATEWAY_CHANNEL_MANAGER"] = _channel_manager
+except Exception:
+    import traceback as _tb
+    print("[gateway] In-process channel manager setup failed (channels will use subprocess fallback):")
+    _tb.print_exc()
 
 
 # ============================================================================
@@ -3093,6 +3175,26 @@ def agent_chat_stream():
         if reply_text:
             session.add_message("assistant", reply_text)
 
+        # Ensure workspace exists (in case agent_session_create was never called
+        # explicitly — e.g. the browser creates a session_id in sessionStorage
+        # and sends it via X-Agent-Session-Id without calling POST /api/agent/session)
+        workspace_manager.get_or_create(session_id, title=session.title)
+        if session.workspace_dir is None:
+            session.workspace_dir = str(workspace_manager.workspace_dir(session_id))
+
+        # Auto-generate title from first user message
+        if not session.title and session.history:
+            first_user = next(
+                (m for m in session.history if m.role == 'user'), None
+            )
+            if first_user:
+                session.title = first_user.content[:30]
+                workspace_manager.rename(session_id, session.title)
+
+        # Persist history and touch workspace
+        workspace_manager.save_history(session_id, session.get_history_dicts())
+        workspace_manager.touch(session_id)
+
     def _cleanup_turn(ctx):
         """Always runs — clear active turn tracking even on cancel."""
         session.clear_turn()
@@ -3170,6 +3272,27 @@ def agent_session_create():
         session_manager.delete_session(session_id)
 
     session = session_manager.create_session(session_id, base_adata=state.current_adata)
+
+    # Bind / create workspace for this session
+    ws_meta = workspace_manager.get_or_create(session_id, title=session.title)
+    session.workspace_dir = str(workspace_manager.workspace_dir(session_id))
+    if not session.title and ws_meta.get('title'):
+        session.title = ws_meta['title']
+
+    # Restore persisted history if session has no history yet
+    if not session.history:
+        saved = workspace_manager.load_history(session_id)
+        if saved:
+            from services.agent_session_service import ChatMessage
+            for m in saved:
+                msg = ChatMessage(
+                    role=m.get('role', 'user'),
+                    content=m.get('content', ''),
+                    turn_id=m.get('turn_id', ''),
+                    timestamp=m.get('timestamp', 0.0),
+                )
+                session.history.append(msg)
+
     return jsonify(session.to_summary())
 
 

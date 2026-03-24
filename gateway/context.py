@@ -36,10 +36,16 @@ class ChannelContextBridge:
     session_manager:
         Web ``SessionManager`` instance (from
         ``services.agent_session_service``).
+    workspace_manager:
+        Optional ``WorkspaceManager`` instance.  When provided, every call to
+        ``write_turn`` / ``sync_from_channel`` automatically persists the
+        session history to disk so channel conversations survive server
+        restarts and appear in the Agent chat sidebar.
     """
 
-    def __init__(self, session_manager):
+    def __init__(self, session_manager, workspace_manager=None):
         self._sm = session_manager
+        self._wm = workspace_manager
 
     # ------------------------------------------------------------------
     # History
@@ -81,6 +87,23 @@ class ChannelContextBridge:
             channel,
             tid,
         )
+
+        # Persist to workspace so the conversation survives restarts and
+        # appears in the Agent chat sidebar.
+        if self._wm is not None:
+            try:
+                ch_label = channel or ""
+                # Auto-title: use channel name + truncated user text
+                auto_title = (f"[{ch_label}] " if ch_label else "") + user_text[:20]
+                existing_meta = self._wm.get_meta(session_id)
+                if existing_meta is None:
+                    self._wm.get_or_create(session_id, title=auto_title)
+                    session.workspace_dir = str(self._wm.workspace_dir(session_id))
+                    session.title = auto_title
+                self._wm.save_history(session_id, session.get_history_dicts())
+                self._wm.touch(session_id)
+            except Exception:
+                logger.exception("ChannelContextBridge.write_turn: workspace persist failed")
 
     def get_history(self, session_id: str) -> list[dict]:
         """Return serialised chat history for *session_id*."""
@@ -179,4 +202,15 @@ class ChannelContextBridge:
             existing_count,
             added,
         )
+
+        # Persist to workspace when workspace_manager is available
+        if added > 0 and self._wm is not None:
+            try:
+                if self._wm.get_meta(session_id) is None:
+                    self._wm.get_or_create(session_id)
+                self._wm.save_history(session_id, session.get_history_dicts())
+                self._wm.touch(session_id)
+            except Exception:
+                logger.exception("ChannelContextBridge.sync_from_channel: workspace persist failed")
+
         return added

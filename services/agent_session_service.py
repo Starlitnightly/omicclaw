@@ -196,6 +196,8 @@ class AgentSession:
     last_tool_name: str = ""
     plan_mode: str = "off"
     worktree: dict = field(default_factory=dict)
+    workspace_dir: Optional[str] = None   # abs path to ~/.omicclaw/conversations/<id>/
+    title: str = ""                        # human-readable conversation title
 
     def touch(self):
         """Update last-active timestamp."""
@@ -539,6 +541,8 @@ class AgentSession:
             "loaded_tools": list(self.loaded_tools),
             "plan_mode": self.plan_mode,
             "worktree": dict(self.worktree),
+            "workspace_dir": self.workspace_dir,
+            "title": self.title,
         }
 
 
