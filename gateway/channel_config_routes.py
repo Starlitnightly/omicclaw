@@ -36,6 +36,10 @@ channel_config_bp = Blueprint("channel_config", __name__)
 _PROCESSES: dict[str, subprocess.Popen] = {}
 _PROCESS_LOCK = threading.Lock()
 
+# Codex OAuth flow state — lives for one login attempt
+_codex_oauth_state: dict = {"status": "idle"}
+_codex_oauth_lock = threading.Lock()
+
 # Latest lifecycle snapshot for each channel. This is shared by the config
 # endpoint, auto-start bootstrap, and the per-channel start/stop handlers.
 _CHANNEL_STATES: dict[str, dict] = {}
@@ -124,6 +128,11 @@ DEFAULT_CONFIG: dict = {
     "endpoint": None,
     "session_dir": None,
     "max_prompts": 0,
+    "temperature": 0.3,
+    "top_p": 1.0,
+    "max_tokens": 2048,
+    "timeout": 60,
+    "system_prompt": "",
     "telegram": {
         "token": None,
         "allowed_users": [],
@@ -618,8 +627,143 @@ def _get_log_buffer(channel: str) -> str:
 
 
 # --------------------------------------------------------------------------
+# Shared LLM config fields (kept in one place to avoid duplication across routes)
+_LLM_FIELDS = ("model", "endpoint", "temperature", "top_p", "max_tokens", "timeout", "system_prompt")
+_LLM_NULLABLE = frozenset({"model", "endpoint"})  # empty string → None
+
 # Routes
 # --------------------------------------------------------------------------
+
+@channel_config_bp.route("/llm-config", methods=["GET"])
+def get_llm_config():
+    """Return the shared LLM config (api_key unmasked) for the Agent panel."""
+    # _read_config() already deep-merges DEFAULT_CONFIG, so all fields are present.
+    cfg = _read_config()
+    api_key = _read_api_key()
+    return jsonify({field: cfg.get(field) for field in _LLM_FIELDS} | {"api_key": api_key})
+
+
+@channel_config_bp.route("/llm-config", methods=["POST"])
+def save_llm_config():
+    """Save shared LLM config from either the Gateway panel or the Agent panel."""
+    body = request.get_json(silent=True) or {}
+    cfg = _read_config()
+    for field in _LLM_FIELDS:
+        if field not in body:
+            continue
+        val = body[field]
+        cfg[field] = None if (val == "" and field in _LLM_NULLABLE) else val
+    try:
+        _write_config(cfg)
+        api_key = body.get("api_key", "")
+        if api_key and not _looks_masked(api_key):
+            _write_api_key(api_key)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@channel_config_bp.route("/llm/test", methods=["POST"])
+def test_llm_config():
+    """Test LLM API key reachability. Body may override {api_key, endpoint}."""
+    body = request.get_json(silent=True) or {}
+    api_key = str(body.get("api_key") or "").strip() or _read_api_key()
+    cfg = _read_config()
+    endpoint = str(body.get("endpoint") or cfg.get("endpoint") or "").strip()
+    if not endpoint:
+        endpoint = "https://api.openai.com/v1"
+    endpoint = endpoint.rstrip("/")
+    if not api_key:
+        return jsonify({"ok": False, "error": "No API key configured"})
+    try:
+        resp = requests.get(
+            f"{endpoint}/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10,
+        )
+        if resp.ok:
+            return jsonify({"ok": True})
+        try:
+            detail = resp.json().get("error", {}).get("message") or f"HTTP {resp.status_code}"
+        except Exception:
+            detail = f"HTTP {resp.status_code}"
+        return jsonify({"ok": False, "error": detail})
+    except requests.exceptions.ConnectionError as exc:
+        return jsonify({"ok": False, "error": f"Connection error: {exc}"})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
+
+@channel_config_bp.route("/codex/oauth/start", methods=["POST"])
+def codex_oauth_start():
+    """Start Codex PKCE OAuth in a background thread; browser polls /status."""
+    from omicverse.jarvis.openai_oauth import OpenAIOAuthManager  # type: ignore
+    with _codex_oauth_lock:
+        if _codex_oauth_state.get("status") == "pending":
+            return jsonify({"ok": False, "error": "OAuth already in progress"})
+        _codex_oauth_state.update({"status": "pending", "error": None, "access_token": None})
+
+    auth_path = _auth_path()
+
+    def _run() -> None:
+        try:
+            mgr = OpenAIOAuthManager(auth_path=auth_path)
+            auth = mgr.login(open_browser=True, timeout_seconds=300)
+            access_token = str((auth.get("tokens") or {}).get("access_token") or "").strip()
+            if access_token:
+                _write_api_key(access_token)
+            with _codex_oauth_lock:
+                _codex_oauth_state.update({"status": "success", "access_token": access_token})
+        except Exception as exc:
+            with _codex_oauth_lock:
+                _codex_oauth_state.update({"status": "error", "error": str(exc)})
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True})
+
+
+@channel_config_bp.route("/codex/oauth/status", methods=["GET"])
+def codex_oauth_status():
+    """Return current OAuth flow state plus stored Codex token info."""
+    from omicverse.jarvis.openai_oauth import token_expired  # type: ignore
+    with _codex_oauth_lock:
+        state = dict(_codex_oauth_state)
+    # Remove raw access_token from the response (security)
+    state.pop("access_token", None)
+    # Check stored auth for linked status
+    auth_data: dict = {"linked": False, "expired": True, "account_id": ""}
+    try:
+        p = _auth_path()
+        if p.exists():
+            raw = json.loads(p.read_text())
+            tokens = raw.get("tokens") or {}
+            access = str(tokens.get("access_token") or "").strip()
+            auth_data = {
+                "linked": bool(access),
+                "expired": token_expired(access) if access else True,
+                "account_id": str(tokens.get("account_id") or ""),
+            }
+    except Exception:
+        pass
+    return jsonify({**state, **auth_data})
+
+
+@channel_config_bp.route("/codex/oauth/import", methods=["POST"])
+def codex_oauth_import():
+    """Import existing Codex CLI auth from ~/.codex/auth.json."""
+    from omicverse.jarvis.openai_oauth import OpenAIOAuthManager  # type: ignore
+    try:
+        mgr = OpenAIOAuthManager(auth_path=_auth_path())
+        auth = mgr.import_codex_auth()
+        if auth is None:
+            return jsonify({"ok": False, "error": "No valid Codex auth found in ~/.codex/auth.json"})
+        access_token = str((auth.get("tokens") or {}).get("access_token") or "").strip()
+        if access_token:
+            _write_api_key(access_token)
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
 
 @channel_config_bp.route("/config", methods=["GET"])
 def get_config():

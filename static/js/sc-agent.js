@@ -640,7 +640,7 @@ Object.assign(SingleCellAnalysis.prototype, {
         const fields = this.getAgentConfigFields();
         if (!fields) return;
 
-        // Load non-secret config from localStorage
+        // Load non-secret config from localStorage (fast path)
         let stored = null;
         try {
             stored = JSON.parse(localStorage.getItem('omicverse.agentConfig') || 'null');
@@ -668,6 +668,37 @@ Object.assign(SingleCellAnalysis.prototype, {
         // Restore "remember key" checkbox state
         const cb = document.getElementById('agent-remember-key');
         if (cb) cb.checked = !!rememberedKey;
+
+        // Sync from gateway server — gateway is the source of truth for shared fields
+        fetch('/api/gateway/channels/llm-config')
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null)
+            .then(data => {
+                if (!data) return;
+                // api_key: gateway always wins (shared key)
+                if (data.api_key) {
+                    fields.apiKey.value = data.api_key;
+                    sessionStorage.setItem('omicverse.agentApiKey', data.api_key);
+                    if (this._isRememberKeyEnabled()) {
+                        localStorage.setItem('omicverse.agentApiKey', data.api_key);
+                    }
+                }
+                // model / endpoint: use gateway value when local has none
+                if (data.model && (!fields.model.value || fields.model.value === 'gpt-5')) {
+                    fields.model.value = data.model;
+                }
+                if (data.endpoint && (!fields.apiBase.value || fields.apiBase.value === 'https://api.openai.com/v1')) {
+                    fields.apiBase.value = data.endpoint;
+                }
+                // Agent-specific params: use server value when no local config exists
+                if (!stored) {
+                    if (data.temperature != null) fields.temperature.value = data.temperature;
+                    if (data.top_p != null) fields.topP.value = data.top_p;
+                    if (data.max_tokens != null) fields.maxTokens.value = data.max_tokens;
+                    if (data.timeout != null) fields.timeout.value = data.timeout;
+                    if (data.system_prompt) fields.systemPrompt.value = data.system_prompt;
+                }
+            });
     },
 
     saveAgentConfig(silent = false) {
@@ -696,6 +727,26 @@ Object.assign(SingleCellAnalysis.prototype, {
         } else {
             localStorage.removeItem('omicverse.agentApiKey');
         }
+
+        // Sync shared LLM config to gateway server (best-effort, non-blocking)
+        const temp = parseFloat(payload.temperature);
+        const topP = parseFloat(payload.topP);
+        const maxTok = parseInt(payload.maxTokens, 10);
+        const tout = parseInt(payload.timeout, 10);
+        fetch('/api/gateway/channels/llm-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: apiKey || undefined,
+                model: payload.model || undefined,
+                endpoint: payload.apiBase || undefined,
+                temperature: isNaN(temp) ? undefined : temp,
+                top_p: isNaN(topP) ? undefined : topP,
+                max_tokens: isNaN(maxTok) ? undefined : maxTok,
+                timeout: isNaN(tout) ? undefined : tout,
+                system_prompt: payload.systemPrompt,
+            }),
+        }).catch(() => {});
 
         if (!silent) {
             this.showStatus(this.t('status.agentSaved'), false);
@@ -1028,6 +1079,18 @@ Object.assign(SingleCellAnalysis.prototype, {
         if (!input) return;
         const message = input.value.trim();
         if (!message) return;
+
+        // Validate API key before sending
+        const cfg = this.getAgentConfig();
+        if (!cfg.apiKey) {
+            if (typeof this._showErrorModal === 'function') {
+                this._showErrorModal(this.t('agent.noApiKeyTitle'), this.t('agent.noApiKeyMsg'));
+            } else {
+                alert(this.t('agent.noApiKeyMsg'));
+            }
+            return;
+        }
+
         input.value = '';
 
         // Ensure session exists
@@ -1082,6 +1145,12 @@ Object.assign(SingleCellAnalysis.prototype, {
                     const body = await resp.json();
                     if (body && body.error) detail = body.error;
                 } catch (_) {}
+                // Surface auth errors immediately via modal
+                if (resp.status === 401 || resp.status === 403) {
+                    if (typeof this._showErrorModal === 'function') {
+                        this._showErrorModal(this.t('agent.noApiKeyTitle'), detail);
+                    }
+                }
                 throw new Error(detail);
             }
 

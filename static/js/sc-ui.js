@@ -1304,6 +1304,106 @@ Object.assign(SingleCellAnalysis.prototype, {
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     },
 
+    // ── Shared error modal (singleton overlay) ─────────────────────────────
+
+    _showErrorModal(title, message) {
+        let overlay = document.getElementById('sc-error-modal');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'sc-error-modal';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,16,26,0.6);display:flex;justify-content:center;align-items:center;z-index:2000;padding:1rem;';
+            overlay.innerHTML = `
+                <div class="card shadow" style="max-width:440px;width:100%;border:none;">
+                    <div class="card-body p-3 position-relative">
+                        <button type="button" class="btn-close position-absolute top-0 end-0 me-2 mt-2"
+                            onclick="document.getElementById('sc-error-modal').style.display='none'"></button>
+                        <h6 class="fw-semibold text-danger mb-2 sc-error-modal-title"></h6>
+                        <div class="small sc-error-modal-body" style="white-space:pre-wrap;word-break:break-word;max-height:260px;overflow-y:auto;"></div>
+                    </div>
+                </div>`;
+            document.body.appendChild(overlay);
+            overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+        }
+        overlay.querySelector('.sc-error-modal-title').textContent = title;
+        overlay.querySelector('.sc-error-modal-body').textContent = message;
+        overlay.style.display = 'flex';
+    },
+
+    // ── Codex OAuth ────────────────────────────────────────────────────────
+
+    _codexOAuthPoller: null,
+
+    startCodexOAuth() {
+        fetch('/api/gateway/channels/codex/oauth/start', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) { this._showErrorModal('Codex OAuth', data.error || this.t('common.unknownError')); return; }
+                this._startCodexOAuthPoll();
+            })
+            .catch(e => this._showErrorModal('Codex OAuth', e.message));
+    },
+
+    importCodexAuth() {
+        fetch('/api/gateway/channels/codex/oauth/import', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) { this._showErrorModal(this.t('gateway.codexImport'), data.error || this.t('common.unknownError')); return; }
+                this._refreshCodexStatus();
+                this.loadChannelConfig();
+            })
+            .catch(e => this._showErrorModal(this.t('gateway.codexImport'), e.message));
+    },
+
+    _startCodexOAuthPoll() {
+        this._clearCodexOAuthPoll();
+        const badge = document.getElementById('gw-codex-status');
+        if (badge) { badge.textContent = this.t('gateway.codexPending'); badge.className = 'badge bg-warning'; badge.style.fontSize = '0.68rem'; }
+        this._codexOAuthPoller = setInterval(() => {
+            fetch('/api/gateway/channels/codex/oauth/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        this._clearCodexOAuthPoll();
+                        this._refreshCodexStatus();
+                        this.loadChannelConfig();
+                    } else if (data.status === 'error') {
+                        this._clearCodexOAuthPoll();
+                        this._showErrorModal('Codex OAuth', data.error || this.t('common.unknownError'));
+                        this._refreshCodexStatus();
+                    }
+                })
+                .catch(() => {});
+        }, 2000);
+    },
+
+    _clearCodexOAuthPoll() {
+        if (this._codexOAuthPoller) { clearInterval(this._codexOAuthPoller); this._codexOAuthPoller = null; }
+    },
+
+    _refreshCodexStatus() {
+        fetch('/api/gateway/channels/codex/oauth/status')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('gw-codex-status');
+                if (!badge) return;
+                badge.style.fontSize = '0.68rem';
+                if (data.linked && !data.expired) {
+                    const label = data.account_id
+                        ? `${this.t('gateway.codexLinked')}: ${data.account_id}`
+                        : this.t('gateway.codexLinked');
+                    badge.textContent = label;
+                    badge.className = 'badge bg-success';
+                } else if (data.linked && data.expired) {
+                    badge.textContent = this.t('gateway.codexExpired');
+                    badge.className = 'badge bg-warning';
+                } else {
+                    badge.textContent = this.t('gateway.codexNotLinked');
+                    badge.className = 'badge bg-secondary';
+                }
+            })
+            .catch(() => {});
+    },
+
     // ── Channel Configuration ──────────────────────────────────────────────
 
     _gwConfig: null,          // cached raw config from server
@@ -1319,7 +1419,7 @@ Object.assign(SingleCellAnalysis.prototype, {
                 this._gwProcesses = data.processes || [];
                 this._gwSecretsSet = data.secrets_set || {};
 
-                // Fill LLM fields
+                // Fill LLM fields (basic)
                 const m = document.getElementById('gw-llm-model');
                 const e = document.getElementById('gw-llm-endpoint');
                 const badge = document.getElementById('gw-llm-key-badge');
@@ -1333,8 +1433,18 @@ Object.assign(SingleCellAnalysis.prototype, {
                 }
                 if (pathEl) pathEl.textContent = data.config_path || '';
 
+                // Fill extended LLM fields (temperature, top_p, max_tokens, timeout, system_prompt)
+                const cfg = this._gwConfig;
+                const setVal = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+                setVal('gw-llm-temperature', cfg.temperature ?? 0.3);
+                setVal('gw-llm-top-p', cfg.top_p ?? 1);
+                setVal('gw-llm-max-tokens', cfg.max_tokens ?? 2048);
+                setVal('gw-llm-timeout', cfg.timeout ?? 60);
+                setVal('gw-llm-system-prompt', cfg.system_prompt ?? '');
+
                 // Render channel cards
                 this._renderChannelCards();
+                this._refreshCodexStatus();
             })
             .catch(() => this._renderChannelConfigError());
     },
@@ -1791,36 +1901,127 @@ Object.assign(SingleCellAnalysis.prototype, {
         state.formValues = this._getChannelFormValues('wechat');
     },
 
-    saveLLMConfig() {
-        const model = (document.getElementById('gw-llm-model') || {}).value || '';
-        const endpoint = (document.getElementById('gw-llm-endpoint') || {}).value || '';
+    _collectLLMFormValues() {
+        const gv = id => (document.getElementById(id) || {}).value || '';
+        const gn = (id, fallback) => { const v = parseFloat(gv(id)); return isNaN(v) ? fallback : v; };
+        const gi = (id, fallback) => { const v = parseInt(gv(id), 10); return isNaN(v) ? fallback : v; };
+        return {
+            model: gv('gw-llm-model'),
+            endpoint: gv('gw-llm-endpoint') || null,
+            temperature: gn('gw-llm-temperature', 0.3),
+            top_p: gn('gw-llm-top-p', 1),
+            max_tokens: gi('gw-llm-max-tokens', 2048),
+            timeout: gi('gw-llm-timeout', 60),
+            system_prompt: gv('gw-llm-system-prompt'),
+        };
+    },
+
+    testLLMConfig() {
         const apiKey = (document.getElementById('gw-llm-api-key') || {}).value || '';
-        const cfg = Object.assign({}, this._gwConfig || {}, { model, endpoint: endpoint || null });
+        const endpoint = (document.getElementById('gw-llm-endpoint') || {}).value || '';
         const resultEl = document.getElementById('gw-llm-save-result');
-        if (resultEl) { resultEl.style.display = 'none'; }
-        fetch('/api/gateway/channels/config', {
+        if (resultEl) {
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = `<span class="text-info"><i class="feather-loader me-1"></i>${this.t('gateway.testing')}</span>`;
+            if (window.feather) feather.replace({ 'stroke-width': 2 });
+        }
+        fetch('/api/gateway/channels/llm/test', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ config: cfg, api_key: apiKey }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey || undefined, endpoint: endpoint || undefined }),
         })
         .then(r => r.json())
         .then(data => {
             if (resultEl) {
                 resultEl.style.display = 'block';
                 resultEl.innerHTML = data.ok
-                    ? `<span class="text-success"><i class="feather-check-circle me-1"></i>${this.t('gateway.savedTo')} ${data.path}</span>`
-                    : `<span class="text-danger"><i class="feather-x-circle me-1"></i>${this._esc(data.error || this.t('gateway.saveFailed'))}</span>`;
+                    ? `<span class="text-success"><i class="feather-check-circle me-1"></i>${this.t('gateway.keyValid')}</span>`
+                    : `<span class="text-danger"><i class="feather-x-circle me-1"></i>${this._esc(data.error || this.t('common.failed'))}</span>`;
                 if (window.feather) feather.replace({ 'stroke-width': 2 });
             }
-            if (data.ok) {
-                this._gwConfig = cfg;
-                if (apiKey) document.getElementById('gw-llm-api-key').value = '';
-                this.loadChannelConfig(); // refresh badge
+            if (!data.ok) {
+                this._showErrorModal(this.t('gateway.testFailed'), data.error || this.t('common.unknownError'));
             }
         })
         .catch(e => {
-            if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = `<span class="text-danger">${e.message}</span>`; }
+            if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = `<span class="text-danger">${this._esc(e.message)}</span>`; }
+            this._showErrorModal(this.t('gateway.testFailed'), e.message);
         });
+    },
+
+    saveLLMConfig() {
+        const apiKey = (document.getElementById('gw-llm-api-key') || {}).value || '';
+        const llmVals = this._collectLLMFormValues();
+        const cfg = Object.assign({}, this._gwConfig || {}, llmVals);
+        const resultEl = document.getElementById('gw-llm-save-result');
+
+        const doSave = () => {
+            if (resultEl) { resultEl.style.display = 'none'; }
+            fetch('/api/gateway/channels/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config: cfg, api_key: apiKey }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (resultEl) {
+                    resultEl.style.display = 'block';
+                    resultEl.innerHTML = data.ok
+                        ? `<span class="text-success"><i class="feather-check-circle me-1"></i>${this.t('gateway.savedTo')} ${data.path}</span>`
+                        : `<span class="text-danger"><i class="feather-x-circle me-1"></i>${this._esc(data.error || this.t('gateway.saveFailed'))}</span>`;
+                    if (window.feather) feather.replace({ 'stroke-width': 2 });
+                }
+                if (data.ok) {
+                    this._gwConfig = cfg;
+                    if (apiKey) document.getElementById('gw-llm-api-key').value = '';
+                    this.loadChannelConfig(); // refresh badge + extended fields
+                    // Propagate api_key change to the Agent panel without a new server fetch
+                    if (apiKey) {
+                        const agentKeyEl = document.getElementById('agent-api-key');
+                        if (agentKeyEl) {
+                            agentKeyEl.value = apiKey;
+                            sessionStorage.setItem('omicverse.agentApiKey', apiKey);
+                        }
+                    }
+                }
+            })
+            .catch(e => {
+                if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = `<span class="text-danger">${this._esc(e.message)}</span>`; }
+            });
+        };
+
+        // If a new API key is entered, test it first before saving
+        if (apiKey) {
+            if (resultEl) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = `<span class="text-info"><i class="feather-loader me-1"></i>${this.t('gateway.testing')}</span>`;
+                if (window.feather) feather.replace({ 'stroke-width': 2 });
+            }
+            fetch('/api/gateway/channels/llm/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: apiKey, endpoint: llmVals.endpoint || undefined }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) {
+                    doSave();
+                } else {
+                    if (resultEl) {
+                        resultEl.style.display = 'block';
+                        resultEl.innerHTML = `<span class="text-danger"><i class="feather-x-circle me-1"></i>${this._esc(data.error || this.t('common.failed'))}</span>`;
+                        if (window.feather) feather.replace({ 'stroke-width': 2 });
+                    }
+                    this._showErrorModal(this.t('gateway.testFailed'), data.error || this.t('common.unknownError'));
+                }
+            })
+            .catch(e => {
+                if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = `<span class="text-danger">${this._esc(e.message)}</span>`; }
+                this._showErrorModal(this.t('gateway.testFailed'), e.message);
+            });
+        } else {
+            doSave();
+        }
     },
 
     saveChannelConfig(ch) {
