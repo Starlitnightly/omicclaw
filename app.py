@@ -711,6 +711,35 @@ except Exception:
     _tb.print_exc()
 
 
+def _find_live_gateway_agent_session(session_id: str):
+    """Return the active JarvisSession whose notebook session matches session_id."""
+    target = str(session_id or "").strip()
+    if not target:
+        return None
+    try:
+        channel_manager = app.config.get("GATEWAY_CHANNEL_MANAGER")
+        jsm = getattr(channel_manager, "_sm", None) if channel_manager is not None else None
+        finder = getattr(jsm, "find_session_by_bridge_session_id", None)
+        if callable(finder):
+            return finder(target)
+    except Exception:
+        logging.getLogger("omicclaw.agent").exception(
+            "find_live_gateway_agent_session_failed sid=%s", target
+        )
+    return None
+
+
+def _select_agent_for_session(session_id: str, config: dict):
+    """Prefer the live channel Jarvis agent for this session; fall back to web agent."""
+    gateway_session = _find_live_gateway_agent_session(session_id)
+    if gateway_session is not None and getattr(gateway_session, "agent", None) is not None:
+        logging.getLogger("omicclaw.agent").info(
+            "reusing_live_gateway_agent sid=%s", session_id
+        )
+        return gateway_session.agent, gateway_session
+    return get_agent_instance(config), None
+
+
 # ============================================================================
 # Code Execution Routes (not in blueprints due to complexity)
 # ============================================================================
@@ -3388,7 +3417,10 @@ def agent_run():
     session_id = request.headers.get('X-Agent-Session-Id', make_turn_id())
 
     try:
-        agent = get_agent_instance(config)
+        agent, gateway_agent_session = _select_agent_for_session(session_id, config)
+        current_adata = state.current_adata
+        if gateway_agent_session is not None and gateway_agent_session.adata is not None:
+            current_adata = gateway_agent_session.adata
         if state.current_adata is None:
             reply = run_agent_chat(agent, prompt, session_id=session_id)
             return jsonify({
@@ -3398,7 +3430,7 @@ def agent_run():
                 'data_info': None
             })
 
-        result = run_agent_stream(agent, prompt, state.current_adata, session_id=session_id)
+        result = run_agent_stream(agent, prompt, current_adata, session_id=session_id)
     except Exception as exc:
         return jsonify({'error': str(exc)}), 500
 
@@ -3465,15 +3497,19 @@ def agent_chat_stream():
 
     session_id = request.headers.get('X-Agent-Session-Id', make_turn_id())
 
-    try:
-        agent = get_agent_instance(config)
-    except Exception as exc:
-        return jsonify({'error': str(exc)}), 500
-
     # --- Session-scoped adata (Phase 3) ---
     # Get or create session; use session adata if available, else global.
     session = session_manager.get_or_create(session_id, base_adata=state.current_adata)
+    try:
+        agent, gateway_agent_session = _select_agent_for_session(session_id, config)
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
     current_adata = session.adata if session.adata is not None else state.current_adata
+    if gateway_agent_session is not None and gateway_agent_session.adata is not None:
+        current_adata = gateway_agent_session.adata
+        if session.adata is None:
+            session.set_adata(current_adata)
 
     # If this is a freshly created session with no history, restore from workspace.
     # This handles the case where the user sends a message before POST /api/agent/session
@@ -3510,6 +3546,16 @@ def agent_chat_stream():
                 and not ctx.get('error')):
             # Commit to session (copy-on-write)
             session_manager.commit_session_adata(session_id, ctx['result_adata'])
+            if gateway_agent_session is not None:
+                try:
+                    gateway_agent_session.adata = ctx['result_adata']
+                    _save_gateway_adata = getattr(gateway_agent_session, 'save_adata', None)
+                    if callable(_save_gateway_adata):
+                        _save_gateway_adata()
+                except Exception:
+                    logging.getLogger("omicclaw.agent").exception(
+                        "gateway_agent_adata_sync_failed sid=%s", session_id
+                    )
             # Also update global state for backward compatibility
             state.current_adata = ctx['result_adata']
             sync_adaptor_with_adata()
