@@ -1462,6 +1462,30 @@ html.app-skin-dark .skills-empty-icon {
   color: #555;
 }
 
+.conv-section-label {
+  min-width: 0;
+}
+
+.conv-section-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.conv-refresh-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.conv-refresh-btn:hover {
+  color: #333;
+}
+
 .conv-section-toggle {
   font-size: 0.6rem;
   transition: transform 0.15s;

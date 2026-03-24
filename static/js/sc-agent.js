@@ -1524,6 +1524,12 @@ Object.assign(SingleCellAnalysis.prototype, {
         } catch (e) { console.error('[conv] _loadConversations error', e); }
     },
 
+    _conversationChannel(conv) {
+        const explicit = String(conv?.channel || '').trim().toLowerCase();
+        if (explicit) return explicit;
+        return this._parseConvTitle(conv?.title || '').channel;
+    },
+
     /** Parse [channel] prefix from a conversation title.
      *  Returns { channel, displayTitle } — channel is '' for web sessions. */
     _parseConvTitle(raw) {
@@ -1556,7 +1562,9 @@ Object.assign(SingleCellAnalysis.prototype, {
     _buildConvItem(conv) {
         const id = conv.session_id || '';
         const rawTitle = conv.title || id.slice(0, 12);
-        const { channel, displayTitle } = this._parseConvTitle(rawTitle);
+        const parsed = this._parseConvTitle(rawTitle);
+        const channel = this._conversationChannel(conv) || parsed.channel;
+        const displayTitle = parsed.displayTitle || rawTitle;
         const isActive = id === this._agentSessionId;
 
         const item = document.createElement('a');
@@ -1589,11 +1597,23 @@ Object.assign(SingleCellAnalysis.prototype, {
 
         const header = document.createElement('div');
         header.className = 'conv-section-header';
-        header.innerHTML = `<span>${labelHtml}</span><span class="conv-section-toggle">▾</span>`;
+        header.innerHTML = `
+            <span class="conv-section-label">${labelHtml}</span>
+            <span class="conv-section-tools">
+                <button class="conv-refresh-btn" type="button" title="Refresh">↻</button>
+                <span class="conv-section-toggle">▾</span>
+            </span>`;
         header.addEventListener('click', () => {
             const collapsed = section.classList.toggle('collapsed');
             sessionStorage.setItem(storageKey, collapsed ? '1' : '0');
         });
+        const refreshBtn = header.querySelector('.conv-refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this._loadConversations();
+            });
+        }
 
         const body = document.createElement('div');
         body.className = 'conv-section-body';
@@ -1633,7 +1653,7 @@ Object.assign(SingleCellAnalysis.prototype, {
 
         for (const conv of list) {
             const rawTitle = conv.title || (conv.session_id || '').slice(0, 12);
-            const { channel } = this._parseConvTitle(rawTitle);
+            const channel = this._conversationChannel(conv) || this._parseConvTitle(rawTitle).channel;
             if (channel) {
                 if (!channelMap.has(channel)) channelMap.set(channel, []);
                 channelMap.get(channel).push(conv);

@@ -17,7 +17,9 @@ import os
 import tempfile
 import warnings
 import json
+import hashlib
 import logging
+import re
 import threading
 import time
 import queue
@@ -328,49 +330,352 @@ try:
                 workspace_manager.save_figure(session_id, png_bytes, name=f"{ts}_{i}")
 
     class _WorkspaceBridge(WebSessionBridge):
-        """WebSessionBridge extended to persist each channel turn to disk."""
+        """WebSessionBridge that maps each channel route to an isolated workspace.
 
-        def _sync_to_workspace(self, sid, channel, user_text, figures, _blog):
-            """Persist a completed channel turn to the workspace index."""
-            # Use get_or_create (not get_session) so we always have a session object
-            # even if get_session returns None due to eviction/TTL between calls.
-            web_session = self._sm.get_or_create(sid)
-            _blog.info("_sync_to_workspace: sid=%s msg_count=%d", sid, len(web_session.history))
-            title = f"[{channel}] {user_text[:20]}"
-            existing = workspace_manager.get_meta(sid)
-            workspace_manager.get_or_create(sid, title=title if existing is None else existing.get("title", title))
-            workspace_manager.save_history(sid, web_session.get_history_dicts())
-            _save_figures(sid, figures)
-            workspace_manager.touch(sid)
-            _blog.info("workspace synced: channel=%s sid=%s", channel, sid)
+        Design
+        ------
+        routing_sid  — deterministic hash of channel+scope (identifies user/chat),
+                       computed by _route_to_web_session_id().  Never changes.
+        workspace_sid — actual workspace id used by OmicClaw.
+                        If the channel provides its own session/conversation id,
+                        that id becomes the workspace id directly. Otherwise we
+                        fall back to the stable route id for that channel scope.
 
-        def on_turn_complete(self, route, user_text, llm_text, adata=None, figures=None):
-            _blog = logging.getLogger("omicclaw.bridge")
-            _blog.info("on_turn_complete called: channel=%s user_text=%r", route.channel, user_text[:40])
-            super().on_turn_complete(route, user_text, llm_text, adata, figures=figures)
+        The mapping  routing_sid → workspace_sid  is persisted to
+        ~/.omicclaw/channel_routes.json so it survives restarts.
+        Each workspace dir also contains a channel_route.json for reverse lookup
+        (needed when the user activates a workspace from the web UI).
+        """
+
+        _ROUTES_FILE = Path.home() / ".omicclaw" / "channel_routes.json"
+        _SESSION_ID_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+        _SESSION_HINT_KEYS = (
+            "channel_session_id",
+            "session_id",
+            "conversation_id",
+            "chat_session_id",
+            "dialog_id",
+        )
+
+        # Flag checked by gateway/server.py so it does not double-wrap this bridge.
+        _has_workspace_bridge = True
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._routes_lock = threading.Lock()
+            self._route_to_workspace: dict = self._load_routes()
+
+        # ------------------------------------------------------------------
+        # Routing-map persistence
+        # ------------------------------------------------------------------
+
+        def _load_routes(self) -> dict:
             try:
-                sid = self.session_id_for_conversation_route(route)
-                self._sync_to_workspace(sid, route.channel, user_text, figures, _blog)
+                if self._ROUTES_FILE.exists():
+                    return json.loads(self._ROUTES_FILE.read_text())
             except Exception:
-                _blog.exception("on_turn_complete workspace sync failed")
+                pass
+            return {}
+
+        def _save_routes(self):
+            try:
+                self._ROUTES_FILE.parent.mkdir(parents=True, exist_ok=True)
+                self._ROUTES_FILE.write_text(json.dumps(self._route_to_workspace))
+            except Exception:
+                logging.getLogger("omicclaw.bridge").exception("_save_routes failed")
+
+        def _normalize_workspace_sid(self, raw_session_id):
+            """Return a filesystem-safe workspace id derived from a channel session id."""
+            if raw_session_id is None:
+                return ""
+            session_id = str(raw_session_id).strip()
+            if not session_id:
+                return ""
+            safe = self._SESSION_ID_SAFE_RE.sub("_", session_id).strip("._-")
+            if not safe:
+                safe = "session"
+            if len(safe) > 96:
+                safe = safe[:64].rstrip("._-") or "session"
+            if safe != session_id:
+                digest = hashlib.sha1(session_id.encode("utf-8")).hexdigest()[:12]
+                safe = f"{safe}-{digest}"
+            return safe
+
+        def _extract_channel_session_id(self, route=None, **hints):
+            """Best-effort extraction of a channel-native session/conversation id."""
+            candidates = []
+            for key in self._SESSION_HINT_KEYS:
+                candidates.append(hints.get(key))
+            if route is not None:
+                for key in self._SESSION_HINT_KEYS:
+                    candidates.append(getattr(route, key, None))
+                meta = getattr(route, "metadata", None)
+                if isinstance(meta, dict):
+                    for key in self._SESSION_HINT_KEYS:
+                        candidates.append(meta.get(key))
+            for value in candidates:
+                sid = self._normalize_workspace_sid(value)
+                if sid:
+                    return sid
+            return ""
+
+        def _hydrate_session_from_workspace(self, workspace_sid):
+            """Load persisted history into the live AgentSession when needed."""
+            session = self._sm.get_or_create(workspace_sid)
+            meta = workspace_manager.get_meta(workspace_sid)
+            if meta is not None:
+                session.workspace_dir = str(workspace_manager.workspace_dir(workspace_sid))
+                if not session.title and meta.get("title"):
+                    session.title = meta["title"]
+            if session.history:
+                return session
+            saved = workspace_manager.load_history(workspace_sid)
+            if not saved:
+                return session
+            from services.agent_session_service import ChatMessage
+            for item in saved:
+                session.history.append(ChatMessage(
+                    role=item.get("role", "user"),
+                    content=item.get("content", ""),
+                    turn_id=item.get("turn_id", ""),
+                    timestamp=item.get("timestamp", 0.0),
+                ))
+            return session
+
+        def _workspace_sid_for(self, routing_sid, *, channel_session_id=""):
+            """Return the canonical workspace id for a channel turn."""
+            return self._normalize_workspace_sid(channel_session_id) or routing_sid
+
+        # ------------------------------------------------------------------
+        # Workspace lifecycle
+        # ------------------------------------------------------------------
+
+        def _active_workspace_for(self, routing_sid, channel, scope_type, scope_id,
+                                   thread_id=None, channel_session_id=None):
+            """Called by get_prior_history_* ONLY.
+
+            Decides which workspace this incoming channel message belongs to and
+            updates _route_to_workspace[routing_sid] accordingly.
+
+            All channels now follow one rule:
+            • channel_session_id is present → use it as workspace id
+            • otherwise → use the stable routing_sid as workspace id
+            """
+            wsid = self._workspace_sid_for(
+                routing_sid,
+                channel_session_id=channel_session_id or "",
+            )
+            with self._routes_lock:
+                self._route_to_workspace[routing_sid] = wsid
+                self._save_routes()
+            # Write routing info for sidebar grouping / inspection.
+            try:
+                ws_dir = workspace_manager.workspace_dir(wsid)
+                ws_dir.mkdir(parents=True, exist_ok=True)
+                (ws_dir / "channel_route.json").write_text(json.dumps({
+                    "routing_sid": routing_sid,
+                    "channel": channel,
+                    "scope_type": scope_type,
+                    "scope_id": str(scope_id),
+                    "thread_id": thread_id,
+                    "channel_session_id": channel_session_id or "",
+                }))
+            except Exception:
+                logging.getLogger("omicclaw.bridge").exception(
+                    "_active_workspace_for: channel_route.json write failed wsid=%s", wsid
+                )
+            return wsid
+
+        def activate_workspace(self, routing_sid: str, workspace_sid: str):
+            """Persist an explicit route→workspace mapping for inspection/debug."""
+            _blog = logging.getLogger("omicclaw.bridge")
+            with self._routes_lock:
+                self._route_to_workspace[routing_sid] = workspace_sid
+                self._save_routes()
+            _blog.info(
+                "activate_workspace: routing=%s → workspace=%s", routing_sid, workspace_sid
+            )
+
+        def _workspace_for_route(self, routing_sid: str):
+            """Read the current workspace for routing_sid without creating anything."""
+            with self._routes_lock:
+                return self._route_to_workspace.get(routing_sid)
+
+        # ------------------------------------------------------------------
+        # History (prior context for channel agents)
+        # ------------------------------------------------------------------
+
+        def _pre_create_workspace(self, routing_sid, channel, scope_type, scope_id,
+                                   thread_id=None, channel_session_id=None):
+            """Ensure a workspace entry exists for this route in the conversations
+            index so the sidebar can display it immediately (before the LLM
+            responds).  The workspace is created with an empty title; _sync_to_workspace
+            will set the real title once the turn completes.
+            """
+            wsid = self._active_workspace_for(
+                routing_sid, channel, scope_type, scope_id, thread_id, channel_session_id
+            )
+            if workspace_manager.get_meta(wsid) is None:
+                workspace_manager.get_or_create(wsid, title="")
+            else:
+                workspace_manager.touch(wsid)
+            return wsid
+
+        def get_prior_history(self, route, session_id=None, channel_session_id=None,
+                              conversation_id=None):
+            """History for Telegram/Discord (ConversationRoute-based channels).
+
+            Pre-creates the workspace entry so it appears in the sidebar
+            immediately (while the LLM is still processing).
+            Returns history for the active workspace, hydrating from disk when
+            the workspace already exists but the live AgentSession is empty.
+            """
+            _blog = logging.getLogger("omicclaw.bridge")
+            try:
+                from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
+                routing_sid = _route_to_web_session_id(
+                    route.channel, route.scope_type, route.scope_id,
+                    getattr(route, "thread_id", None),
+                )
+                channel_session_id = self._extract_channel_session_id(
+                    route,
+                    channel_session_id=channel_session_id,
+                    session_id=session_id,
+                    conversation_id=conversation_id,
+                )
+                wsid = self._pre_create_workspace(
+                    routing_sid, route.channel, route.scope_type, route.scope_id,
+                    getattr(route, "thread_id", None), channel_session_id,
+                )
+                session = self._hydrate_session_from_workspace(wsid)
+                if session and session.history:
+                    h = session.get_history_dicts()
+                    _blog.info("get_prior_history: channel=%s msgs=%d", route.channel, len(h))
+                    return h
+            except Exception:
+                _blog.exception("get_prior_history failed")
+            return []
+
+        def get_prior_history_simple(self, channel, scope_type, scope_id, thread_id=None,
+                                     channel_session_id=None, session_id=None,
+                                     conversation_id=None):
+            """History for QQ / WeChat / Feishu / iMessage.
+
+            Pre-creates the workspace entry so it appears in the sidebar
+            immediately (while the LLM is still processing).
+            """
+            _blog = logging.getLogger("omicclaw.bridge")
+            try:
+                from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
+                routing_sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
+                channel_session_id = self._extract_channel_session_id(
+                    channel_session_id=channel_session_id,
+                    session_id=session_id,
+                    conversation_id=conversation_id,
+                )
+                wsid = self._pre_create_workspace(
+                    routing_sid, channel, scope_type, scope_id, thread_id, channel_session_id
+                )
+                session = self._hydrate_session_from_workspace(wsid)
+                if session and session.history:
+                    h = session.get_history_dicts()
+                    _blog.info(
+                        "get_prior_history_simple: channel=%s msgs=%d", channel, len(h)
+                    )
+                    return h
+            except Exception:
+                _blog.exception("get_prior_history_simple failed channel=%s", channel)
+            return []
+
+        # ------------------------------------------------------------------
+        # Turn write-back
+        # ------------------------------------------------------------------
+
+        def _sync_to_workspace(self, workspace_sid, channel, user_text, figures, _blog):
+            """Persist a completed turn to the workspace index."""
+            web_session = self._sm.get_or_create(workspace_sid)
+            _blog.info(
+                "_sync_to_workspace: workspace=%s msg_count=%d", workspace_sid,
+                len(web_session.history)
+            )
+            title = f"[{channel}] {user_text[:20]}"
+            existing = workspace_manager.get_meta(workspace_sid)
+            workspace_manager.get_or_create(workspace_sid, title=title)
+            existing_history = workspace_manager.load_history(workspace_sid)
+            if (
+                existing is None
+                or not existing.get("title", "").strip()
+                or not existing_history
+            ):
+                workspace_manager.rename(workspace_sid, title)
+            workspace_manager.save_history(workspace_sid, web_session.get_history_dicts())
+            _save_figures(workspace_sid, figures)
+            workspace_manager.touch(workspace_sid)
+            _blog.info("workspace synced: channel=%s workspace=%s", channel, workspace_sid)
+
+        def on_turn_complete(self, route, user_text, llm_text, adata=None, figures=None,
+                             session_id=None, channel_session_id=None, conversation_id=None):
+            _blog = logging.getLogger("omicclaw.bridge")
+            _blog.info("on_turn_complete: channel=%s user_text=%r", route.channel, user_text[:40])
+            try:
+                from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
+                routing_sid = _route_to_web_session_id(
+                    route.channel, route.scope_type, route.scope_id,
+                    getattr(route, "thread_id", None),
+                )
+                channel_session_id = self._extract_channel_session_id(
+                    route,
+                    channel_session_id=channel_session_id,
+                    session_id=session_id,
+                    conversation_id=conversation_id,
+                )
+                workspace_sid = self._pre_create_workspace(
+                    routing_sid, route.channel, route.scope_type, route.scope_id,
+                    getattr(route, "thread_id", None), channel_session_id,
+                )
+                web_session = self._sm.get_or_create(workspace_sid)
+                web_session.add_message("user", f"[{route.channel}] {user_text}")
+                if llm_text:
+                    web_session.add_message("assistant", llm_text)
+                if adata is not None:
+                    try:
+                        self._sm.set_shared_adata(adata)
+                    except Exception:
+                        pass
+                self._sync_to_workspace(workspace_sid, route.channel, user_text, figures, _blog)
+            except Exception:
+                _blog.exception("on_turn_complete failed: channel=%s", route.channel)
 
         def on_turn_complete_simple(self, channel, scope_type, scope_id,
                                     user_text, llm_text, adata=None, thread_id=None,
-                                    figures=None):
+                                    figures=None, channel_session_id=None,
+                                    session_id=None, conversation_id=None):
             _blog = logging.getLogger("omicclaw.bridge")
-            _blog.info("on_turn_complete_simple called: channel=%s user_text=%r", channel, user_text[:40])
-            super().on_turn_complete_simple(
-                channel, scope_type, scope_id, user_text, llm_text, adata, thread_id,
-                figures=figures,
-            )
+            _blog.info("on_turn_complete_simple: channel=%s user_text=%r", channel, user_text[:40])
             try:
                 from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
-                sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
-                self._sync_to_workspace(sid, channel, user_text, figures, _blog)
-            except Exception:
-                _blog.exception(
-                    "on_turn_complete_simple workspace sync failed: channel=%s", channel
+                routing_sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
+                channel_session_id = self._extract_channel_session_id(
+                    channel_session_id=channel_session_id,
+                    session_id=session_id,
+                    conversation_id=conversation_id,
                 )
+                workspace_sid = self._pre_create_workspace(
+                    routing_sid, channel, scope_type, scope_id, thread_id,
+                    channel_session_id,
+                )
+                web_session = self._sm.get_or_create(workspace_sid)
+                web_session.add_message("user", f"[{channel}] {user_text}")
+                if llm_text:
+                    web_session.add_message("assistant", llm_text)
+                if adata is not None:
+                    try:
+                        self._sm.set_shared_adata(adata)
+                    except Exception:
+                        pass
+                self._sync_to_workspace(workspace_sid, channel, user_text, figures, _blog)
+            except Exception:
+                _blog.exception("on_turn_complete_simple failed: channel=%s", channel)
 
     class _LiveConfigJarvisSM(_JarvisSM):
         """Jarvis SessionManager that re-reads LLM config from disk each time

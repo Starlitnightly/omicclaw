@@ -202,16 +202,81 @@ class GatewayServer:
 
                 def _make_workspace_bridge(base_bridge, flask_sm, flask_wm):
                     """Wrap base_bridge to also save history to the workspace on each turn."""
+                    import json as _json
                     import time as _time
                     _blog = _logging.getLogger("omicclaw.bridge")
+                    try:
+                        from services.agent_session_service import ChatMessage as _ChatMessage  # type: ignore[import]
+                    except Exception:
+                        _ChatMessage = None
+
+                    def _resolve_sid(default_sid, *, channel_session_id=None, session_id=None, conversation_id=None):
+                        sid_from_hints = getattr(base_bridge, "_sid_from_hints", None)
+                        if callable(sid_from_hints):
+                            try:
+                                return sid_from_hints(
+                                    default_sid,
+                                    channel_session_id=channel_session_id,
+                                    session_id=session_id,
+                                    conversation_id=conversation_id,
+                                )
+                            except Exception:
+                                pass
+                        for value in (channel_session_id, session_id, conversation_id):
+                            if value is None:
+                                continue
+                            resolved = str(value).strip()
+                            if resolved:
+                                return resolved
+                        return default_sid
+
+                    def _hydrate_if_needed(sid):
+                        web_sess = flask_sm.get_or_create(sid)
+                        if web_sess.history:
+                            return web_sess
+                        saved = flask_wm.load_history(sid)
+                        if not saved:
+                            return web_sess
+                        if _ChatMessage is None:
+                            return web_sess
+                        for item in saved:
+                            web_sess.history.append(_ChatMessage(
+                                role=item.get("role", "user"),
+                                content=item.get("content", ""),
+                                turn_id=item.get("turn_id", ""),
+                                timestamp=item.get("timestamp", 0.0),
+                            ))
+                        return web_sess
+
+                    def _precreate(sid, routing_sid, channel_tag, scope_type, scope_id, thread_id=None, channel_session_id=""):
+                        try:
+                            if flask_wm.get_meta(sid) is None:
+                                flask_wm.get_or_create(sid, title="")
+                            else:
+                                flask_wm.touch(sid)
+                            ws_dir = flask_wm.workspace_dir(sid)
+                            ws_dir.mkdir(parents=True, exist_ok=True)
+                            (ws_dir / "channel_route.json").write_text(_json.dumps({
+                                "routing_sid": routing_sid,
+                                "channel": channel_tag,
+                                "scope_type": scope_type,
+                                "scope_id": str(scope_id),
+                                "thread_id": thread_id,
+                                "channel_session_id": channel_session_id or "",
+                            }))
+                        except Exception:
+                            _blog.exception("workspace precreate failed: sid=%s", sid)
 
                     def _sync(sid, channel_tag, user_text, figures):
                         try:
-                            web_sess = flask_sm.get_or_create(sid)
+                            web_sess = _hydrate_if_needed(sid)
                             _blog.info("_sync_ws: sid=%s msgs=%d", sid, len(web_sess.history))
                             existing = flask_wm.get_meta(sid)
                             title = f"[{channel_tag}] {user_text[:20]}"
-                            flask_wm.get_or_create(sid, title=title if existing is None else existing.get("title", title))
+                            flask_wm.get_or_create(sid, title=title)
+                            existing_history = flask_wm.load_history(sid)
+                            if existing is None or not existing.get("title", "").strip() or not existing_history:
+                                flask_wm.rename(sid, title)
                             flask_wm.save_history(sid, web_sess.get_history_dicts())
                             if figures:
                                 ts = int(_time.time() * 1000)
@@ -223,25 +288,164 @@ class GatewayServer:
                         except Exception:
                             _blog.exception("workspace sync failed: sid=%s", sid)
 
+                    orig_gph = getattr(base_bridge, "get_prior_history", None)
+                    orig_gphs = getattr(base_bridge, "get_prior_history_simple", None)
                     orig_otc = base_bridge.on_turn_complete
                     orig_otcs = base_bridge.on_turn_complete_simple
 
-                    def on_turn_complete(route, user_text, llm_text, adata=None, figures=None):
-                        _blog.info("on_turn_complete: channel=%s", route.channel)
-                        orig_otc(route, user_text, llm_text, adata, figures=figures)
+                    def get_prior_history(route, session_id=None, channel_session_id=None, conversation_id=None):
                         from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
-                        sid = _route_to_web_session_id(route.channel, route.scope_type, route.scope_id, route.thread_id)
+                        routing_sid = _route_to_web_session_id(route.channel, route.scope_type, route.scope_id, route.thread_id)
+                        sid = _resolve_sid(
+                            routing_sid,
+                            channel_session_id=channel_session_id,
+                            session_id=session_id,
+                            conversation_id=conversation_id,
+                        )
+                        _precreate(
+                            sid,
+                            routing_sid,
+                            route.channel,
+                            route.scope_type,
+                            route.scope_id,
+                            route.thread_id,
+                            channel_session_id or session_id or conversation_id or "",
+                        )
+                        history = []
+                        if callable(orig_gph):
+                            try:
+                                history = orig_gph(
+                                    route,
+                                    session_id=session_id,
+                                    channel_session_id=channel_session_id,
+                                    conversation_id=conversation_id,
+                                ) or []
+                            except TypeError:
+                                history = orig_gph(route) or []
+                        if history:
+                            return history
+                        hydrated = _hydrate_if_needed(sid)
+                        return hydrated.get_history_dicts() if hydrated.history else []
+
+                    def get_prior_history_simple(channel, scope_type, scope_id, thread_id=None,
+                                                 channel_session_id=None, session_id=None,
+                                                 conversation_id=None):
+                        from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
+                        routing_sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
+                        sid = _resolve_sid(
+                            routing_sid,
+                            channel_session_id=channel_session_id,
+                            session_id=session_id,
+                            conversation_id=conversation_id,
+                        )
+                        _precreate(
+                            sid,
+                            routing_sid,
+                            channel,
+                            scope_type,
+                            scope_id,
+                            thread_id,
+                            channel_session_id or session_id or conversation_id or "",
+                        )
+                        history = []
+                        if callable(orig_gphs):
+                            try:
+                                history = orig_gphs(
+                                    channel,
+                                    scope_type,
+                                    scope_id,
+                                    thread_id,
+                                    channel_session_id=channel_session_id,
+                                    session_id=session_id,
+                                    conversation_id=conversation_id,
+                                ) or []
+                            except TypeError:
+                                history = orig_gphs(channel, scope_type, scope_id, thread_id) or []
+                        if history:
+                            return history
+                        hydrated = _hydrate_if_needed(sid)
+                        return hydrated.get_history_dicts() if hydrated.history else []
+
+                    def on_turn_complete(route, user_text, llm_text, adata=None, figures=None,
+                                         session_id=None, channel_session_id=None, conversation_id=None):
+                        _blog.info("on_turn_complete: channel=%s", route.channel)
+                        try:
+                            orig_otc(
+                                route,
+                                user_text,
+                                llm_text,
+                                adata,
+                                figures=figures,
+                                session_id=session_id,
+                                channel_session_id=channel_session_id,
+                                conversation_id=conversation_id,
+                            )
+                        except TypeError:
+                            orig_otc(route, user_text, llm_text, adata, figures=figures)
+                        from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
+                        routing_sid = _route_to_web_session_id(route.channel, route.scope_type, route.scope_id, route.thread_id)
+                        sid = _resolve_sid(
+                            routing_sid,
+                            channel_session_id=channel_session_id,
+                            session_id=session_id,
+                            conversation_id=conversation_id,
+                        )
+                        _precreate(
+                            sid,
+                            routing_sid,
+                            route.channel,
+                            route.scope_type,
+                            route.scope_id,
+                            route.thread_id,
+                            channel_session_id or session_id or conversation_id or "",
+                        )
                         _sync(sid, route.channel, user_text, figures)
 
-                    def on_turn_complete_simple(channel, scope_type, scope_id, user_text, llm_text, adata=None, thread_id=None, figures=None):
+                    def on_turn_complete_simple(channel, scope_type, scope_id, user_text, llm_text,
+                                                adata=None, thread_id=None, figures=None,
+                                                channel_session_id=None, session_id=None,
+                                                conversation_id=None):
                         _blog.info("on_turn_complete_simple: channel=%s", channel)
-                        orig_otcs(channel, scope_type, scope_id, user_text, llm_text, adata, thread_id, figures=figures)
+                        try:
+                            orig_otcs(
+                                channel,
+                                scope_type,
+                                scope_id,
+                                user_text,
+                                llm_text,
+                                adata,
+                                thread_id,
+                                figures=figures,
+                                channel_session_id=channel_session_id,
+                                session_id=session_id,
+                                conversation_id=conversation_id,
+                            )
+                        except TypeError:
+                            orig_otcs(channel, scope_type, scope_id, user_text, llm_text, adata, thread_id, figures=figures)
                         from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
-                        sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
+                        routing_sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
+                        sid = _resolve_sid(
+                            routing_sid,
+                            channel_session_id=channel_session_id,
+                            session_id=session_id,
+                            conversation_id=conversation_id,
+                        )
+                        _precreate(
+                            sid,
+                            routing_sid,
+                            channel,
+                            scope_type,
+                            scope_id,
+                            thread_id,
+                            channel_session_id or session_id or conversation_id or "",
+                        )
                         _sync(sid, channel, user_text, figures)
 
+                    base_bridge.get_prior_history = get_prior_history
+                    base_bridge.get_prior_history_simple = get_prior_history_simple
                     base_bridge.on_turn_complete = on_turn_complete
                     base_bridge.on_turn_complete_simple = on_turn_complete_simple
+                    base_bridge._has_workspace_bridge = True
                     return base_bridge
 
                 # Find and patch the web bridge on the channel manager's Jarvis SM
@@ -252,8 +456,14 @@ class GatewayServer:
                         if gwb is not None:
                             # Point bridge at Flask SM
                             gwb._sm = _flask_sm
-                            # Wrap with workspace-saving logic
-                            _make_workspace_bridge(gwb, _flask_sm, _flask_wm)
+                            # Only wrap with workspace-saving logic if the bridge is a plain
+                            # WebSessionBridge.  When app.py already set up a _WorkspaceBridge
+                            # (indicated by the _has_workspace_bridge flag), wrapping again would
+                            # create a duplicate workspace keyed on the raw routing_sid.
+                            if getattr(gwb, "_has_workspace_bridge", False):
+                                logger.info("GatewayServer: bridge already has workspace support, skipping re-wrap")
+                            else:
+                                _make_workspace_bridge(gwb, _flask_sm, _flask_wm)
                             logger.info("GatewayServer: web bridge re-wired to Flask session_manager + workspace")
 
                 # Use Flask SM for /api/gateway/sessions (has list_sessions())

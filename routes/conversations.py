@@ -17,6 +17,7 @@ GET  /<id>/uploads/<filename>   Download uploaded file
 POST /<id>/upload               Upload any file into workspace/uploads/
 """
 
+import json
 import logging
 import os
 
@@ -39,6 +40,17 @@ def _sm():
     return bp.session_manager  # type: ignore[attr-defined]
 
 
+def _load_channel_route(session_id: str) -> dict:
+    """Load channel metadata saved alongside a workspace, if present."""
+    try:
+        route_file = _wm().workspace_dir(session_id) / "channel_route.json"
+        if route_file.exists():
+            return json.loads(route_file.read_text())
+    except Exception:
+        logger.exception("load_channel_route_failed sid=%s", session_id)
+    return {}
+
+
 # ---------------------------------------------------------------------------
 # Conversation CRUD
 # ---------------------------------------------------------------------------
@@ -55,7 +67,19 @@ def list_conversations():
     sm = _sm()
 
     # Start with workspace index (persisted, survives restarts)
-    convs_by_id = {c["session_id"]: c for c in wm.list_conversations()}
+    convs_by_id = {}
+    for entry in wm.list_conversations():
+        sid = entry.get("session_id", "")
+        if not sid:
+            continue
+        route_info = _load_channel_route(sid)
+        merged = dict(entry)
+        if route_info.get("channel"):
+            merged["channel"] = str(route_info.get("channel", "")).lower()
+            merged["scope_type"] = str(route_info.get("scope_type", ""))
+            merged["scope_id"] = str(route_info.get("scope_id", ""))
+            merged["channel_session_id"] = str(route_info.get("channel_session_id", ""))
+        convs_by_id[sid] = merged
 
     # Merge live sessions (in-memory, may include channel sessions)
     if sm is not None:
@@ -87,6 +111,12 @@ def list_conversations():
                 "created_at": s.get("created_at", 0),
                 "last_active": s.get("last_active", 0),
             }
+            route_info = _load_channel_route(sid)
+            if route_info.get("channel"):
+                convs_by_id[sid]["channel"] = str(route_info.get("channel", "")).lower()
+                convs_by_id[sid]["scope_type"] = str(route_info.get("scope_type", ""))
+                convs_by_id[sid]["scope_id"] = str(route_info.get("scope_id", ""))
+                convs_by_id[sid]["channel_session_id"] = str(route_info.get("channel_session_id", ""))
 
     convs = sorted(convs_by_id.values(), key=lambda e: e.get("last_active", 0), reverse=True)
     return jsonify({"conversations": convs})
@@ -144,24 +174,44 @@ def create_conversation():
 
 @bp.route("/<session_id>", methods=["GET"])
 def get_conversation(session_id):
-    """Get conversation metadata + history."""
+    """Get conversation metadata + history.
+
+    Also hydrates the in-memory AgentSession from workspace history when the
+    session is not already live.  This ensures that when the user selects a
+    historical conversation in the web UI, the corresponding channel agent
+    (e.g. QQ, Telegram) will immediately have multi-turn context available
+    via get_prior_history / get_prior_history_simple.
+    """
     meta = _wm().get_meta(session_id)
     if meta is None:
         return jsonify({"error": "Conversation not found"}), 404
 
     history = _wm().load_history(session_id)
 
-    # Also try to get live session history (more up-to-date if in memory)
     sm = _sm()
     if sm is not None:
         live_session = sm.get_session(session_id)
         if live_session is not None and live_session.history:
+            # In-memory is already populated and up-to-date; use it.
             history = live_session.get_history_dicts()
+        elif history:
+            # In-memory is empty (e.g. after server restart) but workspace has
+            # history.  Hydrate the in-memory session so that:
+            #   1. Channel agents get context on the next incoming message.
+            #   2. The web UI agent chat continues with full context.
+            live_session = sm.get_or_create(session_id)
+            if not live_session.history:
+                for msg in history:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role and content:
+                        live_session.add_message(role, content)
 
     return jsonify({
         "session_id": session_id,
         "meta": meta,
         "history": history,
+        "route": _load_channel_route(session_id),
     })
 
 
