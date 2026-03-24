@@ -189,8 +189,83 @@ class GatewayServer:
 
             from app import app as flask_app, state as web_state  # type: ignore[import]
 
+            # ---- Re-wire the channel web bridge to use the Flask session_manager ----
+            # The web bridge was constructed in cli.py with a fresh WebSM instance.
+            # We replace its _sm with the Flask-level session_manager singleton so
+            # that channel turns land in the same SM that /api/conversations/ reads.
+            # We also promote the bridge to a workspace-saving _WorkspaceBridge so
+            # channel conversations appear in the Agent sidebar.
+            try:
+                from services.agent_session_service import session_manager as _flask_sm  # type: ignore[import]
+                from services.workspace_service import workspace_manager as _flask_wm  # type: ignore[import]
+                import logging as _logging
+
+                def _make_workspace_bridge(base_bridge, flask_sm, flask_wm):
+                    """Wrap base_bridge to also save history to the workspace on each turn."""
+                    import time as _time
+                    _blog = _logging.getLogger("omicclaw.bridge")
+
+                    def _sync(sid, channel_tag, user_text, figures):
+                        try:
+                            web_sess = flask_sm.get_or_create(sid)
+                            _blog.info("_sync_ws: sid=%s msgs=%d", sid, len(web_sess.history))
+                            existing = flask_wm.get_meta(sid)
+                            title = f"[{channel_tag}] {user_text[:20]}"
+                            flask_wm.get_or_create(sid, title=title if existing is None else existing.get("title", title))
+                            flask_wm.save_history(sid, web_sess.get_history_dicts())
+                            if figures:
+                                ts = int(_time.time() * 1000)
+                                for i, png in enumerate(figures or []):
+                                    if isinstance(png, bytes) and png:
+                                        flask_wm.save_figure(sid, png, name=f"{ts}_{i}")
+                            flask_wm.touch(sid)
+                            _blog.info("workspace synced: sid=%s channel=%s", sid, channel_tag)
+                        except Exception:
+                            _blog.exception("workspace sync failed: sid=%s", sid)
+
+                    orig_otc = base_bridge.on_turn_complete
+                    orig_otcs = base_bridge.on_turn_complete_simple
+
+                    def on_turn_complete(route, user_text, llm_text, adata=None, figures=None):
+                        _blog.info("on_turn_complete: channel=%s", route.channel)
+                        orig_otc(route, user_text, llm_text, adata, figures=figures)
+                        from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
+                        sid = _route_to_web_session_id(route.channel, route.scope_type, route.scope_id, route.thread_id)
+                        _sync(sid, route.channel, user_text, figures)
+
+                    def on_turn_complete_simple(channel, scope_type, scope_id, user_text, llm_text, adata=None, thread_id=None, figures=None):
+                        _blog.info("on_turn_complete_simple: channel=%s", channel)
+                        orig_otcs(channel, scope_type, scope_id, user_text, llm_text, adata, thread_id, figures=figures)
+                        from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
+                        sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
+                        _sync(sid, channel, user_text, figures)
+
+                    base_bridge.on_turn_complete = on_turn_complete
+                    base_bridge.on_turn_complete_simple = on_turn_complete_simple
+                    return base_bridge
+
+                # Find and patch the web bridge on the channel manager's Jarvis SM
+                if channel_manager is not None:
+                    jsm = getattr(channel_manager, "_sm", None)
+                    if jsm is not None:
+                        gwb = getattr(jsm, "gateway_web_bridge", None)
+                        if gwb is not None:
+                            # Point bridge at Flask SM
+                            gwb._sm = _flask_sm
+                            # Wrap with workspace-saving logic
+                            _make_workspace_bridge(gwb, _flask_sm, _flask_wm)
+                            logger.info("GatewayServer: web bridge re-wired to Flask session_manager + workspace")
+
+                # Use Flask SM for /api/gateway/sessions (has list_sessions())
+                flask_app.config["GATEWAY_SESSION_MANAGER"] = _flask_sm
+
+            except Exception:
+                logger.exception("GatewayServer: web bridge re-wire failed (non-fatal)")
+                # Fallback: keep old session_manager
+                if session_manager is not None:
+                    flask_app.config["GATEWAY_SESSION_MANAGER"] = session_manager
+
             if session_manager is not None:
-                flask_app.config["GATEWAY_SESSION_MANAGER"] = session_manager
                 try:
                     _attach_shared_adata_sync(session_manager, web_state)
                 except Exception:

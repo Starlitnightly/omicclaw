@@ -312,8 +312,10 @@ try:
     from omicverse.jarvis.session import SessionManager as _JarvisSM  # type: ignore[import]
     from omicverse.jarvis.gateway.web_bridge import WebSessionBridge  # type: ignore[import]
 
-    _jarvis_cfg = _read_config()
-    _jarvis_api_key = _read_api_key()
+    # _read_config() / _read_api_key() use current_app internally; run inside app context.
+    with app.app_context():
+        _jarvis_cfg = _read_config()
+        _jarvis_api_key = _read_api_key()
 
     def _save_figures(session_id, figures):
         """Save a list of PNG bytes to workspace outputs/."""
@@ -328,23 +330,35 @@ try:
     class _WorkspaceBridge(WebSessionBridge):
         """WebSessionBridge extended to persist each channel turn to disk."""
 
+        def _sync_to_workspace(self, sid, channel, user_text, figures, _blog):
+            """Persist a completed channel turn to the workspace index."""
+            # Use get_or_create (not get_session) so we always have a session object
+            # even if get_session returns None due to eviction/TTL between calls.
+            web_session = self._sm.get_or_create(sid)
+            _blog.info("_sync_to_workspace: sid=%s msg_count=%d", sid, len(web_session.history))
+            title = f"[{channel}] {user_text[:20]}"
+            existing = workspace_manager.get_meta(sid)
+            workspace_manager.get_or_create(sid, title=title if existing is None else existing.get("title", title))
+            workspace_manager.save_history(sid, web_session.get_history_dicts())
+            _save_figures(sid, figures)
+            workspace_manager.touch(sid)
+            _blog.info("workspace synced: channel=%s sid=%s", channel, sid)
+
         def on_turn_complete(self, route, user_text, llm_text, adata=None, figures=None):
+            _blog = logging.getLogger("omicclaw.bridge")
+            _blog.info("on_turn_complete called: channel=%s user_text=%r", route.channel, user_text[:40])
             super().on_turn_complete(route, user_text, llm_text, adata, figures=figures)
             try:
                 sid = self.session_id_for_conversation_route(route)
-                web_session = self._sm.get_session(sid)
-                if web_session is not None:
-                    title = f"[{route.channel}] {user_text[:20]}"
-                    workspace_manager.get_or_create(sid, title=title)
-                    workspace_manager.save_history(sid, web_session.get_history_dicts())
-                    _save_figures(sid, figures)
-                    workspace_manager.touch(sid)
+                self._sync_to_workspace(sid, route.channel, user_text, figures, _blog)
             except Exception:
-                pass
+                _blog.exception("on_turn_complete workspace sync failed")
 
         def on_turn_complete_simple(self, channel, scope_type, scope_id,
                                     user_text, llm_text, adata=None, thread_id=None,
                                     figures=None):
+            _blog = logging.getLogger("omicclaw.bridge")
+            _blog.info("on_turn_complete_simple called: channel=%s user_text=%r", channel, user_text[:40])
             super().on_turn_complete_simple(
                 channel, scope_type, scope_id, user_text, llm_text, adata, thread_id,
                 figures=figures,
@@ -352,15 +366,11 @@ try:
             try:
                 from omicverse.jarvis.gateway.web_bridge import _route_to_web_session_id  # type: ignore[import]
                 sid = _route_to_web_session_id(channel, scope_type, scope_id, thread_id)
-                web_session = self._sm.get_session(sid)
-                if web_session is not None:
-                    title = f"[{channel}] {user_text[:20]}"
-                    workspace_manager.get_or_create(sid, title=title)
-                    workspace_manager.save_history(sid, web_session.get_history_dicts())
-                    _save_figures(sid, figures)
-                    workspace_manager.touch(sid)
+                self._sync_to_workspace(sid, channel, user_text, figures, _blog)
             except Exception:
-                pass
+                _blog.exception(
+                    "on_turn_complete_simple workspace sync failed: channel=%s", channel
+                )
 
     class _LiveConfigJarvisSM(_JarvisSM):
         """Jarvis SessionManager that re-reads LLM config from disk each time
@@ -369,9 +379,10 @@ try:
         window's per-request config loading behaviour."""
 
         def _build_agent(self, kernel_root):
-            cfg = _read_config()
+            with app.app_context():
+                cfg = _read_config()
+                self._api_key = _read_api_key() or ""
             self._model = cfg.get("model") or "gpt-4o"
-            self._api_key = _read_api_key() or ""
             self._endpoint = cfg.get("endpoint") or ""
             return super()._build_agent(kernel_root)
 
@@ -384,6 +395,11 @@ try:
     )
     _channel_manager = InProcessChannelManager(_jarvis_sm)
     app.config["GATEWAY_CHANNEL_MANAGER"] = _channel_manager
+    logging.getLogger("omicclaw.bridge").info(
+        "Gateway setup OK: web_bridge=%s jarvis_sm.gateway_web_bridge=%s",
+        type(_web_bridge).__name__,
+        type(getattr(_jarvis_sm, "gateway_web_bridge", None)).__name__,
+    )
 except Exception:
     import traceback as _tb
     print("[gateway] In-process channel manager setup failed (channels will use subprocess fallback):")

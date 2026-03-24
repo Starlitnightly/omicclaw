@@ -92,6 +92,40 @@ def list_conversations():
     return jsonify({"conversations": convs})
 
 
+@bp.route("/debug", methods=["GET"])
+def debug_conversations():
+    """Debug: show raw data from workspace index and live sessions."""
+    wm = _wm()
+    sm = _sm()
+    workspace_entries = wm.list_conversations()
+    live_sessions = sm.list_sessions() if sm is not None else []
+    # Also try Jarvis SM via channel manager
+    jarvis_sessions = []
+    try:
+        from flask import current_app
+        cm = current_app.config.get("GATEWAY_CHANNEL_MANAGER")
+        if cm is not None:
+            jsm = getattr(cm, "_sm", None)
+            if jsm is not None and hasattr(jsm, "_sessions"):
+                for uid, kernels in jsm._sessions.items():
+                    for kname, jsess in kernels.items():
+                        gwb = getattr(jsm, "gateway_web_bridge", None)
+                        jarvis_sessions.append({
+                            "user_id": uid, "kernel": kname,
+                            "has_web_bridge": gwb is not None,
+                            "web_bridge_type": type(gwb).__name__ if gwb else None,
+                        })
+    except Exception as e:
+        jarvis_sessions = [{"error": str(e)}]
+    return jsonify({
+        "workspace_count": len(workspace_entries),
+        "workspace_entries": workspace_entries,
+        "live_session_count": len(live_sessions),
+        "live_sessions": live_sessions,
+        "jarvis_sm_info": jarvis_sessions,
+    })
+
+
 @bp.route("/", methods=["POST"])
 def create_conversation():
     """Create a new conversation workspace.

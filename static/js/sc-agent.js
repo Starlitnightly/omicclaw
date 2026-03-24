@@ -1517,10 +1517,11 @@ Object.assign(SingleCellAnalysis.prototype, {
     async _loadConversations() {
         try {
             const resp = await fetch('/api/conversations/');
-            if (!resp.ok) return;
+            if (!resp.ok) { console.warn('[conv] /api/conversations/ returned', resp.status); return; }
             const data = await resp.json();
+            console.debug('[conv] list:', data.conversations?.length, 'items', data.conversations?.map(c => c.session_id?.slice(0,8) + '…' + (c.title||'').slice(0,20)));
             this._renderConvList(data.conversations || []);
-        } catch (_) {}
+        } catch (e) { console.error('[conv] _loadConversations error', e); }
     },
 
     /** Parse [channel] prefix from a conversation title.
@@ -1819,12 +1820,12 @@ Object.assign(SingleCellAnalysis.prototype, {
         _origSetupAgentChat.call(this);
         // Load conversation list after a brief delay so DOM is fully ready
         setTimeout(() => this._loadConversations(), 400);
-        // Poll every 10s to pick up channel sessions arriving from outside the browser
+        // Poll every 3s to pick up channel sessions arriving from outside the browser
         setInterval(() => {
             const nav = document.getElementById('agent-config-nav');
             if (nav && nav.style.display !== 'none') {
                 this._loadConversations();
             }
-        }, 10000);
+        }, 3000);
     }
 });
