@@ -698,3 +698,116 @@
     color: var(--nxl-body-color) !important;
     border-color: var(--nxl-border-color) !important;
 }
+
+/* ========================================
+   Dark Theme — Bootstrap CSS variable overrides
+   These fix utility classes that fall back to light values
+   because Bootstrap's own dark-mode vars are never set
+   in this NXL template.
+   ======================================== */
+html.app-skin-dark {
+    /* ── Core background / text ── */
+    --bs-body-bg: #0f1711;
+    --bs-body-bg-rgb: 15, 23, 17;
+    --bs-body-color: #e6efe9;
+    --bs-secondary-bg: #1e2a22;
+    --bs-tertiary-bg: #161e18;
+    --bs-border-color: #374151;
+    --bs-border-color-translucent: rgba(148, 163, 184, 0.16);
+
+    /* ── Bootstrap semantic subtle colours (used by badge inline styles) ── */
+    --bs-success-bg-subtle:   rgba(19, 198, 101, 0.18);
+    --bs-success-text:        #86efac;
+    --bs-warning-bg-subtle:   rgba(251, 191, 36, 0.18);
+    --bs-warning-text:        #fcd34d;
+    --bs-danger-bg-subtle:    rgba(239, 68, 68, 0.18);
+    --bs-danger-text:         #fca5a5;
+    --bs-secondary-bg-subtle: rgba(148, 163, 184, 0.12);
+    --bs-secondary-text:      #9ca3af;
+    --bs-dark-bg-subtle:      rgba(148, 163, 184, 0.14);
+    --bs-dark-text:           #d1d5db;
+    --bs-info-bg-subtle:      rgba(56, 189, 248, 0.16);
+    --bs-info-text:           #7dd3fc;
+}
+
+/* ========================================
+   Dark Theme — bg-body-tertiary image placeholders
+   Used as "empty state" boxes in viz panels
+   ======================================== */
+html.app-skin-dark .bg-body-tertiary {
+    background-color: #111a13 !important;
+}
+
+/* Ensure the filter bar separator in DEG table uses dark border */
+html.app-skin-dark #deg-viz-panel .card-body > div[style*="border-bottom"],
+html.app-skin-dark #dct-viz-panel .card-body > div[style*="border-bottom"] {
+    border-bottom-color: rgba(148, 163, 184, 0.14) !important;
+}
+
+/* ========================================
+   Dark Theme — Skills view
+   ======================================== */
+html.app-skin-dark .workbench-pane-skills .skills-toolbar {
+    background: linear-gradient(180deg, rgba(11, 18, 14, 0.98) 0%, rgba(9, 15, 12, 0.98) 100%);
+    border-color: rgba(148, 163, 184, 0.12) !important;
+    box-shadow: 0 18px 36px -34px rgba(0, 0, 0, 0.8);
+}
+
+html.app-skin-dark .workbench-pane-skills .skill-card {
+    background: linear-gradient(180deg, rgba(12, 20, 16, 0.98) 0%, rgba(9, 14, 12, 0.98) 100%);
+    border-color: rgba(148, 163, 184, 0.12) !important;
+}
+
+html.app-skin-dark .workbench-pane-skills .skill-card:hover {
+    border-color: rgba(19, 198, 101, 0.28) !important;
+    box-shadow: 0 28px 54px -40px rgba(0, 0, 0, 0.88), 0 0 0 1px rgba(19, 198, 101, 0.14);
+}
+
+/* ========================================
+   Dark Theme — Gateway status detail
+   ======================================== */
+html.app-skin-dark #gw-status-detail {
+    color: var(--nxl-muted) !important;
+}
+
+html.app-skin-dark .workbench-pane-gateway .card-body,
+html.app-skin-dark .workbench-pane-gateway .gw-tab-pane {
+    background: transparent !important;
+    color: var(--nxl-body-color) !important;
+}
+
+html.app-skin-dark .workbench-pane-gateway .text-muted {
+    color: var(--nxl-muted) !important;
+}
+
+html.app-skin-dark .workbench-pane-gateway .nav-tabs .nav-link,
+html.app-skin-dark .workbench-pane-gateway .nav-tabs {
+    border-color: var(--nxl-border-color) !important;
+}
+
+html.app-skin-dark .workbench-pane-gateway .nav-tabs .nav-link.active {
+    background: rgba(13, 21, 17, 0.98) !important;
+    color: #e7f0ea !important;
+    border-color: var(--nxl-border-color) var(--nxl-border-color) rgba(13, 21, 17, 0.98) !important;
+}
+
+html.app-skin-dark .workbench-pane-gateway .nav-tabs .nav-link:not(.active) {
+    color: var(--nxl-muted) !important;
+}
+
+html.app-skin-dark #gw-memory-docs .text-muted,
+html.app-skin-dark #gw-channel-cards .text-muted,
+html.app-skin-dark #gw-sessions-list .text-muted {
+    color: var(--nxl-muted) !important;
+}
+
+/* ========================================
+   Dark Theme — status-bar (bottom floating bar)
+   ======================================== */
+html.app-skin-dark #status-bar {
+    background: linear-gradient(180deg, rgba(11, 18, 14, 0.96) 0%, rgba(9, 15, 12, 0.96) 100%) !important;
+    border-color: rgba(148, 163, 184, 0.12) !important;
+}
+html.app-skin-dark #status-bar .text-muted {
+    color: var(--nxl-muted) !important;
+}

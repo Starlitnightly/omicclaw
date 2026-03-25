@@ -11,7 +11,76 @@ import subprocess
 import importlib
 import argparse
 import socket
+import threading
+import urllib.request
+import json
+import re
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Startup self-update check (runs in background, like Claude Code / Codex)
+# ---------------------------------------------------------------------------
+
+def _update_worker() -> None:
+    """Background thread: check PyPI and self-update via uv if a newer version is available."""
+    try:
+        from importlib.metadata import version as _pkg_version
+        current = _pkg_version('omicclaw')
+    except Exception:
+        return  # can't determine current version — skip
+
+    try:
+        req = urllib.request.urlopen(
+            'https://pypi.org/pypi/omicclaw/json', timeout=5
+        )
+        data = json.loads(req.read())
+        latest = data['info']['version']
+    except Exception:
+        return  # network or parse error — skip silently
+
+    def _parse(v: str):
+        return tuple(int(x) for x in re.findall(r'\d+', v))
+
+    try:
+        if _parse(latest) <= _parse(current):
+            return
+    except Exception:
+        if latest == current:
+            return
+
+    # A newer version is available — install it
+    RESET = '\033[0m'
+    CYAN  = '\033[96m'
+    GREEN = '\033[92m'
+    print(f"\n{CYAN}OmicClaw update available: {current} → {latest}{RESET}")
+    print(f"{CYAN}Running: uv pip install -U omicclaw{RESET}")
+    try:
+        result = subprocess.run(
+            ['uv', 'pip', 'install', '-U', 'omicclaw'],
+            capture_output=False,
+            text=True,
+        )
+        if result.returncode == 0:
+            print(f"{GREEN}OmicClaw updated to {latest} — restart to apply.{RESET}\n")
+        else:
+            print(f"Update failed (exit {result.returncode}). Run manually: uv pip install -U omicclaw\n")
+    except FileNotFoundError:
+        # uv not found — fall back to pip
+        try:
+            subprocess.run(
+                [sys.executable, '-m', 'pip', 'install', '-U', 'omicclaw', '-q'],
+                check=True,
+            )
+            print(f"{GREEN}OmicClaw updated to {latest} — restart to apply.{RESET}\n")
+        except Exception:
+            print(f"Update failed. Run manually: pip install -U omicclaw\n")
+
+
+def _check_and_apply_update() -> None:
+    """Launch background update check so startup is not blocked."""
+    t = threading.Thread(target=_update_worker, daemon=True)
+    t.start()
 
 def check_dependencies():
     """Check if all required dependencies are available."""
@@ -188,6 +257,7 @@ def omicclaw_main(argv=None):
     """Run the launcher with OmicClaw branding and forced login enabled."""
     os.environ['OV_WEB_FORCE_LOGIN'] = '1'
     os.environ['OV_LAUNCHER'] = 'omicclaw'
+    _check_and_apply_update()
     return main(argv)
 
 
