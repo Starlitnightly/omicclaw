@@ -6804,7 +6804,13 @@ print(f"HVG count: {adata.var.highly_variable.sum()}")`,
         con.style.webkitUserSelect = 'text';
         con.style.cursor = 'text';
         const color = type === 'error' ? '#f38ba8' : type === 'cmd' ? '#89b4fa' : type === 'ok' ? '#a6e3a1' : '#cdd6f4';
-        con.innerHTML += `<span style="color:${color}">${this._escHtml(text)}</span>`;
+        // Strip ANSI escape codes (e.g. \x1b[2m from uv) and carriage returns
+        const clean = String(text)
+            .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')  // ANSI CSI sequences
+            .replace(/\x1b[^[]/g, '')                // other ESC sequences
+            .replace(/\r(?!\n)/g, '\n')              // bare \r → newline
+            .replace(/\r\n/g, '\n');                 // normalize CRLF
+        con.innerHTML += `<span style="color:${color}">${this._escHtml(clean)}</span>`;
         con.scrollTop = con.scrollHeight;
     }
 
