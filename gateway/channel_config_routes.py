@@ -241,6 +241,37 @@ def _read_api_key() -> str:
     return os.environ.get("OPENAI_API_KEY", "")
 
 
+def _read_auth_data() -> dict:
+    p = _auth_path()
+    if not p.exists():
+        return {}
+    try:
+        with open(p) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _read_codex_access_token() -> str:
+    auth = _read_auth_data()
+    return str((auth.get("tokens") or {}).get("access_token") or "").strip()
+
+
+def _read_codex_account_id() -> str:
+    auth = _read_auth_data()
+    return str((auth.get("tokens") or {}).get("account_id") or "").strip()
+
+
+def _resolve_effective_api_key(endpoint: str | None = None, explicit_api_key: str | None = None) -> str:
+    endpoint_text = str(endpoint or "").strip()
+    api_key = str(explicit_api_key or "").strip() or _read_api_key()
+    if "chatgpt.com" in endpoint_text:
+        codex_token = _read_codex_access_token()
+        if codex_token:
+            return codex_token
+    return api_key
+
+
 def _get_channel_manager():
     if not has_app_context():
         return None
@@ -640,7 +671,14 @@ def get_llm_config():
     # _read_config() already deep-merges DEFAULT_CONFIG, so all fields are present.
     cfg = _read_config()
     api_key = _read_api_key()
-    return jsonify({field: cfg.get(field) for field in _LLM_FIELDS} | {"api_key": api_key})
+    return jsonify(
+        {field: cfg.get(field) for field in _LLM_FIELDS}
+        | {
+            "api_key": api_key,
+            "codex_linked": bool(_read_codex_access_token()),
+            "codex_account_id": _read_codex_account_id(),
+        }
+    )
 
 
 @channel_config_bp.route("/llm-config", methods=["POST"])
@@ -667,12 +705,12 @@ def save_llm_config():
 def test_llm_config():
     """Test LLM API key reachability. Body may override {api_key, endpoint}."""
     body = request.get_json(silent=True) or {}
-    api_key = str(body.get("api_key") or "").strip() or _read_api_key()
     cfg = _read_config()
     endpoint = str(body.get("endpoint") or cfg.get("endpoint") or "").strip()
     if not endpoint:
         endpoint = "https://api.openai.com/v1"
     endpoint = endpoint.rstrip("/")
+    api_key = _resolve_effective_api_key(endpoint, str(body.get("api_key") or "").strip())
     if not api_key:
         return jsonify({"ok": False, "error": "No API key configured"})
     try:

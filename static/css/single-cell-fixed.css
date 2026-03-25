@@ -128,6 +128,20 @@
     font-family: 'Courier New', monospace;
     font-size: 0.85rem;
     line-height: 1.4;
+    cursor: text;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.analysis-log pre,
+.analysis-log .text-dark,
+.analysis-log .text-danger,
+.analysis-log .text-muted,
+#env-console,
+#env-console * {
+    cursor: text;
+    user-select: text !important;
+    -webkit-user-select: text !important;
 }
 
 /* Tool Parameter Styles */

@@ -81,6 +81,37 @@ agent_instance = None
 agent_config_signature = None
 
 
+def _load_ovjarvis_auth() -> dict:
+    try:
+        from pathlib import Path as _Path
+        auth_file = _Path.home() / ".ovjarvis" / "auth.json"
+        if auth_file.exists():
+            return json.loads(auth_file.read_text())
+    except Exception:
+        pass
+    return {}
+
+
+def _resolve_chatgpt_backend_auth(explicit_api_key: str) -> tuple[str, str]:
+    """Return the effective OAuth access token and account id for ChatGPT backend."""
+    auth_data = _load_ovjarvis_auth()
+    tokens = auth_data.get("tokens") or {}
+    access_token = str(tokens.get("access_token") or "").strip()
+    account_id = str(tokens.get("account_id") or "").strip()
+
+    api_key = str(explicit_api_key or "").strip()
+    if api_key.startswith("eyJ") and access_token and api_key == access_token:
+        return api_key, account_id
+    if access_token:
+        return access_token, account_id
+    return api_key, account_id
+
+
+def _looks_like_oauth_jwt(token: str) -> bool:
+    token = str(token or "").strip()
+    return token.startswith("eyJ") and token.count(".") >= 2
+
+
 def get_agent_instance(config):
     """Get or create OmicVerse agent instance with caching.
 
@@ -99,6 +130,12 @@ def get_agent_instance(config):
     model = config.get('model') or 'gpt-5'
     api_key = config.get('apiKey') or ''
     endpoint = config.get('apiBase') or None
+    agent_kwargs = {
+        'model': model,
+        'endpoint': endpoint or None,
+        'use_notebook_execution': False,
+    }
+    auth_signature = ''
 
     # For Codex OAuth (ChatGPT backend): inject chatgpt_account_id from stored
     # auth so agent_backend can include it in the chatgpt-account-id header.
@@ -107,35 +144,35 @@ def get_agent_instance(config):
     if endpoint and "chatgpt.com" in endpoint:
         try:
             from pathlib import Path as _Path
-            _auth_file = _Path.home() / ".ovjarvis" / "auth.json"
-            if _auth_file.exists():
-                _auth_data = json.loads(_auth_file.read_text())
-                _account_id = str(
-                    (_auth_data.get("tokens") or {}).get("account_id") or ""
-                ).strip()
-                if _account_id:
-                    os.environ["CHATGPT_ACCOUNT_ID"] = _account_id
+            auth_file = _Path.home() / ".ovjarvis" / "auth.json"
+            api_key, account_id = _resolve_chatgpt_backend_auth(api_key)
+            auth_signature = json.dumps((_load_ovjarvis_auth().get('tokens') or {}), sort_keys=True)
+            if account_id:
+                os.environ["CHATGPT_ACCOUNT_ID"] = account_id
+            agent_kwargs['auth_mode'] = 'openai_oauth'
+            agent_kwargs['auth_file'] = str(auth_file)
+            if _looks_like_oauth_jwt(api_key):
+                agent_kwargs['api_key'] = api_key
         except Exception:
             pass
+    else:
+        agent_kwargs['api_key'] = api_key or None
+        auth_signature = api_key
 
     # Use a hash of the API key for the signature so the full key is never
     # stored in a string that could appear in logs / tracebacks.
     import hashlib
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16] if api_key else ''
+    key_hash = hashlib.sha256(auth_signature.encode()).hexdigest()[:16] if auth_signature else ''
     signature = json.dumps({
         'model': model,
         'key_hash': key_hash,
         'endpoint': endpoint,
+        'auth_mode': agent_kwargs.get('auth_mode', 'api_key'),
     }, sort_keys=True)
 
     # Only recreate agent if configuration changed
     if agent_instance is None or signature != agent_config_signature:
-        agent_instance = ov.Agent(
-            model=model,
-            api_key=api_key or None,
-            endpoint=endpoint or None,
-            use_notebook_execution=False
-        )
+        agent_instance = ov.Agent(**agent_kwargs)
         agent_config_signature = signature
 
     return agent_instance

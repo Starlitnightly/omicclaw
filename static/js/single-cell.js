@@ -4198,7 +4198,10 @@ class SingleCellAnalysis {
                 'border-radius:0 4px 4px 0',
                 'white-space:pre-wrap',
                 'word-break:break-all',
-                'color:#495057'
+                'color:#495057',
+                'cursor:text',
+                'user-select:text',
+                '-webkit-user-select:text'
             ].join(';');
             pre.textContent = message;
             logEntry.appendChild(pre);
@@ -6797,6 +6800,9 @@ print(f"HVG count: {adata.var.highly_variable.sum()}")`,
     _envLog(text, type = 'output') {
         const con = document.getElementById('env-console');
         if (!con) return;
+        con.style.userSelect = 'text';
+        con.style.webkitUserSelect = 'text';
+        con.style.cursor = 'text';
         const color = type === 'error' ? '#f38ba8' : type === 'cmd' ? '#89b4fa' : type === 'ok' ? '#a6e3a1' : '#cdd6f4';
         con.innerHTML += `<span style="color:${color}">${this._escHtml(text)}</span>`;
         con.scrollTop = con.scrollHeight;

@@ -673,7 +673,10 @@ Object.assign(SingleCellAnalysis.prototype, {
                 'border-radius:0 4px 4px 0',
                 'white-space:pre-wrap',
                 'word-break:break-all',
-                'color:#495057'
+                'color:#495057',
+                'cursor:text',
+                'user-select:text',
+                '-webkit-user-select:text'
             ].join(';');
             pre.textContent = message;
             logEntry.appendChild(pre);
@@ -1540,7 +1543,8 @@ Object.assign(SingleCellAnalysis.prototype, {
                 <div id="gw-log-${ch.id}" style="display:none;margin-top:10px;">
                     <div style="background:#1a1a2e;color:#a8d8a8;font-size:0.73rem;font-family:monospace;
                                 border-radius:6px;padding:10px 12px;max-height:220px;overflow-y:auto;
-                                white-space:pre-wrap;word-break:break-all;" id="gw-log-body-${ch.id}">
+                                white-space:pre-wrap;word-break:break-all;cursor:text;
+                                user-select:text;-webkit-user-select:text;" id="gw-log-body-${ch.id}">
                         ${this.t('gateway.noOutputYet')}
                     </div>
                 </div>

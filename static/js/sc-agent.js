@@ -45,6 +45,9 @@ Object.assign(SingleCellAnalysis.prototype, {
     /** Latest loaded trace payload */
     _agentTracePayload: null,
 
+    /** Whether gateway has a saved Codex OAuth session */
+    _agentCodexLinked: false,
+
     /** DOM element for the pending assistant bubble */
     _agentPendingBubble: null,
 
@@ -689,6 +692,7 @@ Object.assign(SingleCellAnalysis.prototype, {
             .catch(() => null)
             .then(data => {
                 if (!data) return;
+                this._agentCodexLinked = !!data.codex_linked;
                 // api_key: gateway always wins (shared key)
                 if (data.api_key) {
                     fields.apiKey.value = data.api_key;
@@ -1096,7 +1100,8 @@ Object.assign(SingleCellAnalysis.prototype, {
 
         // Validate API key before sending
         const cfg = this.getAgentConfig();
-        if (!cfg.apiKey) {
+        const wantsChatgptBackend = String(cfg.apiBase || '').includes('chatgpt.com');
+        if (!cfg.apiKey && !(wantsChatgptBackend && this._agentCodexLinked)) {
             if (typeof this._showErrorModal === 'function') {
                 this._showErrorModal(this.t('agent.noApiKeyTitle'), this.t('agent.noApiKeyMsg'));
             } else {

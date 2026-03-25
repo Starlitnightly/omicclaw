@@ -8,6 +8,7 @@ Object.assign(SingleCellAnalysis.prototype, {
         this.accountTokenStorageKey = 'omicverse.accountToken';
         this.accountProfileStorageKey = 'omicverse.accountProfile';
         this.accountConfigured = true;
+        this.accountAuthHydrated = false;
         this.accountUser = this.readCachedAccountProfile();
         this.accountMenuOpen = false;
         this.accountCenterEditable = false;
@@ -323,6 +324,9 @@ Object.assign(SingleCellAnalysis.prototype, {
     },
 
     canAccessGateway() {
+        if (!this.accountAuthHydrated && !this.accountUser) {
+            return true;
+        }
         return !!(this.accountUser || this.getAccountToken());
     },
 
@@ -630,6 +634,8 @@ Object.assign(SingleCellAnalysis.prototype, {
             }
         } catch (_) {
             this.accountConfigured = false;
+        } finally {
+            this.accountAuthHydrated = true;
         }
         this.updateAccountMenu();
         if (this.currentView === 'account') {
@@ -797,6 +803,7 @@ Object.assign(SingleCellAnalysis.prototype, {
         this.setAccountToken('');
         this.accountUser = null;
         this.cacheAccountProfile(null);
+        this.accountAuthHydrated = true;
         this.accountCenterEditable = false;
         this.skillsLoaded = false;
         this.updateAccountMenu();

@@ -18,6 +18,7 @@ from omicverse.utils.skill_registry import (
     build_multi_path_skill_registry,
     discover_multi_path_skill_roots,
 )
+from utils.account_session import resolve_account_token
 from utils.remote_store import request_remote_json, remote_store_enabled
 
 
@@ -234,10 +235,7 @@ def _remote_skill_entry(payload: Dict[str, object]) -> Dict[str, object]:
 
 
 def _read_bearer_token() -> str:
-    header = str(request.headers.get("Authorization") or "")
-    if not header.lower().startswith("bearer "):
-        return ""
-    return header.split(" ", 1)[1].strip()
+    return resolve_account_token(request.headers.get("Authorization"))
 
 
 def _fetch_remote_skills() -> tuple[List[Dict[str, object]], str]:
