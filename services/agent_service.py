@@ -112,6 +112,26 @@ def _looks_like_oauth_jwt(token: str) -> bool:
     return token.startswith("eyJ") and token.count(".") >= 2
 
 
+def _should_use_openai_oauth(endpoint: Optional[str], api_key: str) -> bool:
+    endpoint_text = str(endpoint or "").strip().rstrip("/")
+    auth_data = _load_ovjarvis_auth()
+    tokens = auth_data.get("tokens") or {}
+    saved_access_token = str(tokens.get("access_token") or "").strip()
+    saved_account_id = str(tokens.get("account_id") or "").strip()
+    explicit_api_key = str(api_key or "").strip()
+
+    if "chatgpt.com" in endpoint_text:
+        return True
+    if _looks_like_oauth_jwt(explicit_api_key):
+        return True
+    if saved_access_token and saved_account_id:
+        if not explicit_api_key:
+            return True
+        if explicit_api_key == saved_access_token:
+            return True
+    return False
+
+
 def get_agent_instance(config):
     """Get or create OmicVerse agent instance with caching.
 
@@ -137,11 +157,10 @@ def get_agent_instance(config):
     }
     auth_signature = ''
 
-    # For Codex OAuth (ChatGPT backend): inject chatgpt_account_id from stored
-    # auth so agent_backend can include it in the chatgpt-account-id header.
-    # The access_token JWT may not embed chatgpt_account_id as a claim; instead
-    # openai_oauth.py stores it under tokens.account_id in ~/.ovjarvis/auth.json.
-    if endpoint and "chatgpt.com" in endpoint:
+    # Prefer the newer ov.Agent OAuth flow whenever the current credentials
+    # look like Codex / ChatGPT OAuth, even if the UI endpoint is still the
+    # default OpenAI API URL.
+    if _should_use_openai_oauth(endpoint, api_key):
         try:
             from pathlib import Path as _Path
             auth_file = _Path.home() / ".ovjarvis" / "auth.json"
