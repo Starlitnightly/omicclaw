@@ -24,6 +24,14 @@ import threading
 import time
 import queue
 import io
+from typing import Any
+
+from omicverse.jarvis.media_ingest import (
+    PreparedImage,
+    build_workspace_note,
+    compose_multimodal_user_text,
+    prepare_image_path,
+)
 
 # Import services
 from services.kernel_service import InProcessKernelExecutor, normalize_kernel_id, get_kernel_context
@@ -3480,6 +3488,56 @@ def agent_run():
 # Streaming chatbot endpoint (Phase 1)
 # ---------------------------------------------------------------------------
 
+def _extract_web_attachment_refs(payload: dict) -> list[Any]:
+    refs: list[Any] = []
+    for key in ("attachments", "images", "uploaded_files", "image_paths"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            refs.extend(value)
+        elif value:
+            refs.append(value)
+    return refs
+
+
+def _prepare_web_request_images(session_id: str, payload: dict) -> list[PreparedImage]:
+    refs = _extract_web_attachment_refs(payload)
+    if not refs:
+        return []
+
+    uploads_dir = workspace_manager.uploads_dir(session_id).resolve()
+    prepared: list[PreparedImage] = []
+    for item in refs[:4]:
+        if isinstance(item, dict):
+            raw_path = str(item.get("path") or item.get("filename") or item.get("name") or "").strip()
+            mime_type = str(item.get("mime_type") or item.get("content_type") or "").strip()
+        else:
+            raw_path = str(item or "").strip()
+            mime_type = ""
+        if not raw_path:
+            continue
+
+        candidate = Path(raw_path).expanduser()
+        if not candidate.is_absolute():
+            candidate = uploads_dir / raw_path.lstrip("/\\")
+        resolved = candidate.resolve(strict=False)
+        try:
+            resolved.relative_to(uploads_dir)
+        except ValueError as exc:
+            raise ValueError("Uploaded image must be inside workspace/uploads") from exc
+        if not resolved.exists() or not resolved.is_file():
+            raise ValueError(f"Uploaded image not found: {resolved}")
+        prepared.append(
+            prepare_image_path(
+                resolved,
+                target_dir=resolved.parent,
+                mime_type=mime_type,
+                prefix="web_image",
+                source="web",
+            )
+        )
+    return prepared
+
+
 @app.route('/api/agent/chat/stream', methods=['POST'])
 def agent_chat_stream():
     """Stream agent events as SSE for a single chatbot turn.
@@ -3493,7 +3551,18 @@ def agent_chat_stream():
     usage, heartbeat, stream_end.
     """
     payload = request.json if request.json else {}
-    prompt = (payload.get('message') or '').strip()
+    session_id = request.headers.get('X-Agent-Session-Id', make_turn_id())
+    raw_prompt = (payload.get('message') or '').strip()
+    try:
+        request_images = _prepare_web_request_images(session_id, payload)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    image_note = build_workspace_note(
+        workspace_manager.workspace_dir(session_id),
+        request_images,
+        header="[Attached Web images saved in workspace]",
+    )
+    prompt = compose_multimodal_user_text(raw_prompt, image_note) if request_images else raw_prompt
     if not prompt:
         return jsonify({'error': '没有提供问题'}), 400
 
@@ -3501,8 +3570,6 @@ def agent_chat_stream():
     system_prompt = (config.get('systemPrompt') or '').strip()
     if system_prompt:
         prompt = f"{system_prompt}\n\n{prompt}"
-
-    session_id = request.headers.get('X-Agent-Session-Id', make_turn_id())
 
     # --- Session-scoped adata (Phase 3) ---
     # Get or create session; use session adata if available, else global.
@@ -3627,6 +3694,7 @@ def agent_chat_stream():
         agent, prompt, current_adata,
         session_id=session_id,
         history=prior_history,
+        request_content=[item.request_block for item in request_images],
         on_complete=_commit_adata,
         on_finally=_cleanup_turn,
     )

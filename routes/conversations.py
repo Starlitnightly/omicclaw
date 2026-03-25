@@ -23,6 +23,7 @@ import os
 
 from flask import Blueprint, jsonify, request, send_from_directory
 from werkzeug.utils import secure_filename
+from omicverse.jarvis.media_ingest import looks_like_image_name, prepare_image_bytes
 
 logger = logging.getLogger("omicclaw.conversations")
 
@@ -311,15 +312,32 @@ def upload_to_workspace(session_id):
     filename = secure_filename(file.filename)
     up_dir = _wm().uploads_dir(session_id)
     up_dir.mkdir(parents=True, exist_ok=True)
-    dest = up_dir / filename
-    file.save(str(dest))
+    mime_type = str(getattr(file, "mimetype", "") or "").strip().lower()
+    if mime_type.startswith("image/") or looks_like_image_name(filename):
+        prepared = prepare_image_bytes(
+            file.read(),
+            target_dir=up_dir,
+            filename=filename,
+            mime_type=mime_type,
+            prefix="web_image",
+            source="web",
+        )
+        dest = prepared.path
+        filename = dest.name
+    else:
+        dest = up_dir / filename
+        file.save(str(dest))
 
     stat = dest.stat()
     _wm().touch(session_id)
 
-    return jsonify({
+    payload = {
         "filename": filename,
         "size": stat.st_size,
         "path": str(dest),
         "url": f"/api/conversations/{session_id}/uploads/{filename}",
-    })
+    }
+    if mime_type.startswith("image/") or looks_like_image_name(filename):
+        payload["kind"] = "image"
+        payload["mime_type"] = prepared.mime_type
+    return jsonify(payload)

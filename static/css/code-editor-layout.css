@@ -647,9 +647,38 @@
     border-top: 1px solid #e5e7eb;
     padding: 12px;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     background: #ffffff;
+}
+
+.agent-attachment-strip {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.agent-attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #3730a3;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.agent-attachment-chip button {
+    border: none;
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    line-height: 1;
+    cursor: pointer;
 }
 
 .agent-input textarea {

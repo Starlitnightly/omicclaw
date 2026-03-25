@@ -659,6 +659,7 @@ def stream_agent_events(
     *,
     session_id: str = "",
     history: Optional[list] = None,
+    request_content: Optional[list] = None,
     on_complete: Optional[callable] = None,
     on_finally: Optional[callable] = None,
 ) -> AgentStreamHandle:
@@ -914,6 +915,7 @@ def stream_agent_events(
                         prompt, adata,
                         cancel_event=agent_cancel,
                         history=history,
+                        request_content=request_content or [],
                         approval_handler=_approval_handler,
                     ):
                         etype = event.get("type")

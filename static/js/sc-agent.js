@@ -54,6 +54,9 @@ Object.assign(SingleCellAnalysis.prototype, {
     /** Accumulated LLM text for the current turn */
     _agentLlmText: '',
 
+    /** Uploaded image attachments waiting to be sent with the next turn */
+    _agentPendingImages: [],
+
     // =====================================================================
     // Setup
     // =====================================================================
@@ -69,6 +72,8 @@ Object.assign(SingleCellAnalysis.prototype, {
 
     setupAgentChat() {
         const input = document.getElementById('agent-input');
+        const imageBtn = document.getElementById('agent-image-btn');
+        const imageInput = document.getElementById('agent-image-input');
         if (!input) return;
         input.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -76,6 +81,14 @@ Object.assign(SingleCellAnalysis.prototype, {
                 this.sendAgentMessage();
             }
         });
+        if (imageBtn && imageInput) {
+            imageBtn.addEventListener('click', () => imageInput.click());
+            imageInput.addEventListener('change', (event) => {
+                this._handleAgentImageSelection(event).catch((err) => {
+                    this.appendAgentMessage(`Image upload failed: ${err.message}`, 'assistant');
+                });
+            });
+        }
         // Initialize session
         const _sid = this._ensureAgentSession();
         // Restore history for the current session (no-op if workspace doesn't exist yet)
@@ -126,6 +139,72 @@ Object.assign(SingleCellAnalysis.prototype, {
             indicator.title = this.t('agent.sessionId') + ': ' + this._agentSessionId;
         }
         this._renderAgentHarnessMeta();
+    },
+
+    async _handleAgentImageSelection(event) {
+        const files = Array.from((event && event.target && event.target.files) || []);
+        if (!files.length) return;
+        this._ensureAgentSession();
+        for (const file of files) {
+            const uploaded = await this._uploadAgentImageFile(file);
+            this._agentPendingImages.push({
+                name: uploaded.filename || file.name,
+                path: uploaded.path,
+                mime_type: uploaded.mime_type || file.type || 'image/png',
+                size: uploaded.size || file.size || 0,
+            });
+        }
+        if (event && event.target) event.target.value = '';
+        this._renderAgentAttachmentPreview();
+    },
+
+    async _uploadAgentImageFile(file) {
+        const form = new FormData();
+        form.append('file', file);
+        const resp = await fetch(`/api/conversations/${encodeURIComponent(this._agentSessionId)}/upload`, {
+            method: 'POST',
+            body: form,
+        });
+        if (!resp.ok) {
+            let detail = `HTTP ${resp.status}`;
+            try {
+                const body = await resp.json();
+                if (body && body.error) detail = body.error;
+            } catch (_) {}
+            throw new Error(detail);
+        }
+        const payload = await resp.json();
+        if (!payload || !payload.path) {
+            throw new Error('Upload response missing file path');
+        }
+        return payload;
+    },
+
+    _renderAgentAttachmentPreview() {
+        const preview = document.getElementById('agent-image-preview');
+        if (!preview) return;
+        preview.innerHTML = '';
+        if (!this._agentPendingImages.length) {
+            preview.style.display = 'none';
+            return;
+        }
+        preview.style.display = 'flex';
+        this._agentPendingImages.forEach((item, index) => {
+            const chip = document.createElement('div');
+            chip.className = 'agent-attachment-chip';
+            const label = document.createElement('span');
+            label.textContent = item.name || `image_${index + 1}`;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.textContent = 'x';
+            remove.addEventListener('click', () => {
+                this._agentPendingImages.splice(index, 1);
+                this._renderAgentAttachmentPreview();
+            });
+            chip.appendChild(label);
+            chip.appendChild(remove);
+            preview.appendChild(chip);
+        });
     },
 
     async _initializeAgentHarness() {
@@ -1096,7 +1175,10 @@ Object.assign(SingleCellAnalysis.prototype, {
         const input = document.getElementById('agent-input');
         if (!input) return;
         const message = input.value.trim();
-        if (!message) return;
+        const attachments = Array.isArray(this._agentPendingImages)
+            ? this._agentPendingImages.slice()
+            : [];
+        if (!message && !attachments.length) return;
 
         // Validate API key before sending
         const cfg = this.getAgentConfig();
@@ -1111,12 +1193,19 @@ Object.assign(SingleCellAnalysis.prototype, {
         }
 
         input.value = '';
+        this._agentPendingImages = [];
+        this._renderAgentAttachmentPreview();
 
         // Ensure session exists
         this._ensureAgentSession();
 
         // User bubble
-        this.appendAgentMessage(message, 'user');
+        let displayMessage = message;
+        if (attachments.length) {
+            const suffix = `[Attached images: ${attachments.map((item) => item.name).join(', ')}]`;
+            displayMessage = displayMessage ? `${displayMessage}\n${suffix}` : suffix;
+        }
+        this.appendAgentMessage(displayMessage, 'user');
 
         // Pending assistant bubble with streaming cursor
         const bubble = document.createElement('div');
@@ -1137,10 +1226,10 @@ Object.assign(SingleCellAnalysis.prototype, {
 
         this._setAgentState('streaming');
         this._renderAgentHarnessMeta();
-        this._startAgentStream(message, bubble, textSpan);
+        this._startAgentStream(message, attachments, bubble, textSpan);
     },
 
-    async _startAgentStream(message, bubble, textSpan) {
+    async _startAgentStream(message, attachments, bubble, textSpan) {
         const abort = new AbortController();
         this._agentAbort = abort;
 
@@ -1153,6 +1242,7 @@ Object.assign(SingleCellAnalysis.prototype, {
                 },
                 body: JSON.stringify({
                     message,
+                    attachments,
                     config: this.getAgentConfig()
                 }),
                 signal: abort.signal

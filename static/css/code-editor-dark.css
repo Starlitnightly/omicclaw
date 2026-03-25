@@ -455,6 +455,11 @@ html.app-skin-dark .agent-input {
     background: #0f172a;
 }
 
+html.app-skin-dark .agent-attachment-chip {
+    background: #1e3a8a;
+    color: #dbeafe;
+}
+
 html.app-skin-dark .agent-input textarea {
     background: #111827;
     border-color: #1f2937;

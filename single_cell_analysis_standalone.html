@@ -1610,7 +1610,10 @@
                                 <div class="agent-message assistant" data-i18n="agent.greeting">Hi, I can help analyze single-cell data. Tell me what you want to do.</div>
                             </div>
                             <div class="agent-input">
+                                <input type="file" id="agent-image-input" accept="image/*" multiple style="display:none;">
+                                <div id="agent-image-preview" class="agent-attachment-strip" style="display:none;"></div>
                                 <textarea id="agent-input" placeholder="Ask a question, e.g. suggest cell type annotation" data-i18n-placeholder="agent.inputPlaceholder"></textarea>
+                                <button type="button" id="agent-image-btn" class="btn btn-sm btn-outline-secondary">Image</button>
                                 <button type="button" id="agent-send-btn" class="btn btn-sm btn-primary" onclick="singleCellApp.sendAgentMessage()" data-i18n="agent.send">Send</button>
                                 <button type="button" id="agent-stop-btn" class="btn btn-sm btn-danger" onclick="singleCellApp.stopAgentStream()" style="display:none;" data-i18n="agent.stop">Stop</button>
                             </div>
