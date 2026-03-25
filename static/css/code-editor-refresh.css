@@ -400,12 +400,32 @@ body.view-code-active .file-manager-item {
 .code-cell-input pre[class*="language-"] {
     padding: 8px 12px 10px 14px;
     font-family: "SF Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
-    font-size: 12.5px;
-    line-height: 1.58;
+    font-size: 13px;
+    line-height: 20.54px;
+    box-sizing: border-box;
+    tab-size: 4;
+    -moz-tab-size: 4;
 }
 
 .code-cell-input .code-highlight {
     color: #13271c;
+}
+
+.code-cell-input .code-highlight,
+.code-cell-input .code-highlight code {
+    font-family: "SF Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", monospace !important;
+    font-size: 13px !important;
+    line-height: 20.54px !important;
+    letter-spacing: normal !important;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    font-variant-ligatures: none;
+}
+
+.code-cell-input .code-highlight code {
+    display: block;
+    color: inherit !important;
+    white-space: pre;
 }
 
 .code-cell.cell-markdown .code-input,
@@ -633,11 +653,17 @@ html.app-skin-dark .cell-toolbar .btn.btn-success {
     color: #92f2b4 !important;
 }
 
-html.app-skin-dark .code-cell-input .code-highlight,
+/* code-highlight (pre) must NOT use -webkit-text-fill-color: it inherits to all
+   child token spans and overrides their individual token colors, making everything
+   appear as one flat color. Only the textarea needs -webkit-text-fill-color (transparent). */
+html.app-skin-dark .code-cell-input .code-highlight {
+    color: #d4d4d4 !important;
+}
+
 html.app-skin-dark .code-cell.cell-markdown .code-input,
 html.app-skin-dark .code-cell.cell-raw .code-input {
-    color: #e9f4ee !important;
-    -webkit-text-fill-color: #e9f4ee;
+    color: #d4d4d4 !important;
+    -webkit-text-fill-color: #d4d4d4;
 }
 
 html.app-skin-dark .code-cell-input textarea {
@@ -646,7 +672,7 @@ html.app-skin-dark .code-cell-input textarea {
 
 html.app-skin-dark .code-cell-input .code-highlight code[class*="language-"],
 html.app-skin-dark .code-cell-input pre[class*="language-"] {
-    color: #eef8f2 !important;
+    color: #d4d4d4 !important;
     background: transparent !important;
     text-shadow: none !important;
 }
@@ -655,22 +681,25 @@ html.app-skin-dark .code-cell-input .code-highlight .token.comment,
 html.app-skin-dark .code-cell-input .code-highlight .token.prolog,
 html.app-skin-dark .code-cell-input .code-highlight .token.doctype,
 html.app-skin-dark .code-cell-input .code-highlight .token.cdata {
-    color: #7f9389 !important;
+    color: #6a9955 !important;
+    font-style: italic;
 }
 
 html.app-skin-dark .code-cell-input .code-highlight .token.punctuation,
 html.app-skin-dark .code-cell-input .code-highlight .token.operator {
-    color: #c9d8d0 !important;
+    color: #d4d4d4 !important;
 }
 
 html.app-skin-dark .code-cell-input .code-highlight .token.keyword,
 html.app-skin-dark .code-cell-input .code-highlight .token.atrule {
-    color: #7dd3fc !important;
+    color: #c586c0 !important;
+    font-weight: 700;
 }
 
 html.app-skin-dark .code-cell-input .code-highlight .token.function,
 html.app-skin-dark .code-cell-input .code-highlight .token.class-name {
-    color: #c4b5fd !important;
+    color: #dcdcaa !important;
+    font-weight: 600;
 }
 
 html.app-skin-dark .code-cell-input .code-highlight .token.string,
@@ -678,18 +707,35 @@ html.app-skin-dark .code-cell-input .code-highlight .token.char,
 html.app-skin-dark .code-cell-input .code-highlight .token.attr-value,
 html.app-skin-dark .code-cell-input .code-highlight .token.builtin,
 html.app-skin-dark .code-cell-input .code-highlight .token.inserted {
-    color: #86efac !important;
+    color: #ce9178 !important;
 }
 
 html.app-skin-dark .code-cell-input .code-highlight .token.number,
 html.app-skin-dark .code-cell-input .code-highlight .token.boolean,
 html.app-skin-dark .code-cell-input .code-highlight .token.constant {
-    color: #fbbf24 !important;
+    color: #b5cea8 !important;
+    font-weight: 600;
 }
 
 html.app-skin-dark .code-cell-input .code-highlight .token.variable,
 html.app-skin-dark .code-cell-input .code-highlight .token.parameter {
-    color: #bfdbfe !important;
+    color: #9cdcfe !important;
+}
+
+html.app-skin-dark .code-cell-input .code-highlight .token.property,
+html.app-skin-dark .code-cell-input .code-highlight .token.symbol,
+html.app-skin-dark .code-cell-input .code-highlight .token.selector,
+html.app-skin-dark .code-cell-input .code-highlight .token.tag {
+    color: #4ec9b0 !important;
+}
+
+html.app-skin-dark .code-cell-input .code-highlight .token.builtin,
+html.app-skin-dark .code-cell-input .code-highlight .token.function,
+html.app-skin-dark .code-cell-input .code-highlight .token.class-name,
+html.app-skin-dark .code-cell-input .code-highlight .token.keyword,
+html.app-skin-dark .code-cell-input .code-highlight .token.number,
+html.app-skin-dark .code-cell-input .code-highlight .token.string {
+    opacity: 1 !important;
 }
 
 html.app-skin-dark .code-cell-output {

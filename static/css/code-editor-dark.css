@@ -32,7 +32,8 @@ html.app-skin-dark .code-cell-input pre[class*="language-"] {
 html.app-skin-dark code[class*="language-"],
 html.app-skin-dark pre[class*="language-"] {
     color: #e5e7eb;
-    text-shadow: none;
+    text-shadow: none !important;
+    background: transparent !important;
 }
 
 html.app-skin-dark .code-cell-input .code-highlight code {
@@ -40,7 +41,7 @@ html.app-skin-dark .code-cell-input .code-highlight code {
 }
 
 html.app-skin-dark .token {
-    text-shadow: none;
+    text-shadow: none !important;
     background: transparent !important;
 }
 

@@ -75,23 +75,37 @@
     box-sizing: border-box;
 }
 
+/* CSS Grid same-cell layout: both pre and textarea occupy grid-area 1/1,
+   guaranteeing pixel-perfect alignment without any positioning arithmetic. */
 .code-cell-input {
     padding: 0;
-    position: relative;
+    display: grid;
+}
+
+/* Place all three children in the same grid cell so they stack exactly */
+.code-cell-input .code-highlight,
+.code-cell-input .code-input,
+.code-cell-input .markdown-render {
+    grid-area: 1 / 1;
 }
 
 .code-cell-input textarea,
 .code-cell-input pre[class*="language-"] {
     width: 100%;
-    min-height: auto;
+    min-height: 60px;
     border: none;
     padding: 12px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
     font-size: 13px;
-    line-height: 1.5;
+    /* Use a pixel line-height to eliminate subpixel rounding drift across lines */
+    line-height: 20px;
     margin: 0;
-    overflow-x: auto;
     white-space: pre;
+    box-sizing: border-box;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    word-wrap: normal;
+    overflow-wrap: normal;
 }
 
 .code-cell-input textarea {
@@ -103,8 +117,14 @@
     text-shadow: 0 0 0 transparent;
     -webkit-text-stroke: 0 transparent;
     caret-color: #111827;
-    position: relative;
     z-index: 2;
+    /* Hide scrollbar — it would shift layout vs the pre layer causing cursor offset */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.code-cell-input textarea::-webkit-scrollbar {
+    display: none;
 }
 
 .code-cell.cell-markdown .code-input,
@@ -154,17 +174,15 @@
 }
 
 .code-cell-input .code-highlight {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    /* grid-area: 1/1 set above — no absolute positioning needed */
     pointer-events: none;
     background: transparent;
     z-index: 1;
     color: #111827;
     white-space: pre;
     overflow: hidden;
+    /* Prevent the pre from contributing to grid cell height beyond textarea */
+    visibility: visible;
 }
 
 .code-cell-input .code-highlight code {

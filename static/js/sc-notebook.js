@@ -76,7 +76,12 @@ Object.assign(SingleCellAnalysis.prototype, {
                 <div class="code-cell-input">
                     <pre class="code-highlight language-python"><code class="language-python"></code></pre>
                     <div class="markdown-render" id="${cellId}-markdown"></div>
-                    <textarea class="code-input" placeholder="# Enter Python code (variables: adata, sc, pd, np)
+                    <textarea class="code-input"
+                        autocapitalize="none"
+                        autocorrect="off"
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="# Enter Python code (variables: adata, sc, pd, np)
 # Shift+Enter to run" data-i18n-placeholder="code.placeholder">${code}</textarea>
                 </div>
                 <div class="code-cell-output" id="${cellId}-output"></div>
