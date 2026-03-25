@@ -97,7 +97,12 @@ Object.assign(SingleCellAnalysis.prototype, {
         con.style.webkitUserSelect = 'text';
         con.style.cursor = 'text';
         const color = type === 'error' ? '#f38ba8' : type === 'cmd' ? '#89b4fa' : type === 'ok' ? '#a6e3a1' : '#cdd6f4';
-        con.innerHTML += `<span style="color:${color}">${this._escHtml(text)}</span>`;
+        const clean = String(text)
+            .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+            .replace(/\x1b[^[]/g, '')
+            .replace(/\r\n/g, '\n')
+            .replace(/\r(?!\n)/g, '\n');
+        con.innerHTML += `<span style="color:${color}">${this._escHtml(clean)}</span>`;
         con.scrollTop = con.scrollHeight;
     },
 
