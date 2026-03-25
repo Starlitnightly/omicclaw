@@ -99,8 +99,11 @@ class AppState:
         self.current_kernel_name = 'python3'
         self.kernel_names = {}
         self.kernel_sessions = {}
-        self.notebook_root = os.getcwd()
-        self.file_root = Path(self.notebook_root).resolve()
+        workspace_root = os.environ.get('OMICCLAW_WORKSPACE_ROOT') or os.getcwd()
+        workspace_path = Path(workspace_root).expanduser().resolve()
+        workspace_path.mkdir(parents=True, exist_ok=True)
+        self.notebook_root = str(workspace_path)
+        self.file_root = workspace_path
 
 # Create global state instance
 state = AppState()
@@ -2364,7 +2367,7 @@ _PYPI_MIRRORS = [
 @app.route('/api/env/info', methods=['GET'])
 def env_info():
     """Return current Python environment information."""
-    import sys, platform, importlib.metadata as _meta, shutil, subprocess
+    import sys, os, platform, importlib.metadata as _meta, shutil, subprocess
 
     # ── System ───────────────────────────────────────────────────────────────
     system = {
@@ -2395,7 +2398,7 @@ def env_info():
         pass
 
     # uv version via subprocess (uv starts in <100ms, no heavy runtime)
-    uv_path = shutil.which('uv')
+    uv_path = os.environ.get('OMICCLAW_UV_EXECUTABLE') or shutil.which('uv')
     if uv_path:
         try:
             python_info['uv'] = subprocess.check_output(
@@ -2515,7 +2518,7 @@ def env_test_mirrors():
 @app.route('/api/env/install_pip', methods=['POST'])
 def env_install_pip():
     """Stream uv pip install output via SSE."""
-    import subprocess, shutil
+    import subprocess, shutil, sys, os, importlib
     payload = request.json or {}
     package  = payload.get('package', '').strip()
     mirror   = payload.get('mirror', '').strip()
@@ -2523,8 +2526,8 @@ def env_install_pip():
     if not package:
         return jsonify({'error': 'package name required'}), 400
 
-    uv_path = shutil.which('uv') or 'uv'
-    cmd = [uv_path, 'pip', 'install', package]
+    uv_path = os.environ.get('OMICCLAW_UV_EXECUTABLE') or shutil.which('uv') or 'uv'
+    cmd = [uv_path, 'pip', 'install', '--python', sys.executable, package]
     if mirror:
         cmd += ['--index-url', mirror]
     if extra:
@@ -2532,6 +2535,8 @@ def env_install_pip():
 
     def generate():
         yield f"data: {json.dumps({'type': 'cmd', 'text': ' '.join(cmd)})}\n\n"
+        info_text = f"Target Python: {sys.executable}\n"
+        yield f"data: {json.dumps({'type': 'info', 'text': info_text})}\n\n"
         try:
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -2541,6 +2546,8 @@ def env_install_pip():
                 yield f"data: {json.dumps({'type': 'output', 'text': line})}\n\n"
             proc.wait()
             ok = proc.returncode == 0
+            if ok:
+                importlib.invalidate_caches()
             yield f"data: {json.dumps({'type': 'complete', 'success': ok, 'returncode': proc.returncode})}\n\n"
         except FileNotFoundError:
             yield f"data: {json.dumps({'type': 'error', 'text': 'uv not found. Run: pip install uv'})}\n\n"
@@ -4165,6 +4172,11 @@ ensure_default_notebook(state.file_root)
 
 # Remove empty conversations (created but no messages sent) left from previous runs
 workspace_manager.cleanup_empty()
+
+
+def create_app():
+    """Return the singleton Flask application for embedded launchers."""
+    return app
 
 
 if __name__ == '__main__':

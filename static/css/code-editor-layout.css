@@ -180,6 +180,9 @@
     font-size: 12px;
     display: none;
     overflow: auto;
+    cursor: text;
+    user-select: text !important;
+    -webkit-user-select: text !important;
 }
 
 .code-cell-output.markdown {
@@ -204,6 +207,9 @@
 .code-output-text {
     margin: 0 0 8px 0;
     white-space: pre-wrap;
+    cursor: text;
+    user-select: text !important;
+    -webkit-user-select: text !important;
 }
 
 /* ANSI Colors */

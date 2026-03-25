@@ -72,7 +72,7 @@ def list_files_abs():
     if abs_path:
         target = Path(abs_path).resolve()
     else:
-        target = bp.file_root  # default: open at working directory
+        target = Path.home().resolve()  # default: user home directory
 
     if not target.exists() or not target.is_dir():
         return jsonify({'error': 'Directory not found'}), 404
@@ -101,6 +101,7 @@ def list_files_abs():
         'current_abs': str(target),
         'parent_abs': '' if is_fs_root else str(parent),
         'file_root_abs': str(bp.file_root),
+        'user_home_abs': str(Path.home().resolve()),
         'is_fs_root': is_fs_root,
         'entries': entries,
     })

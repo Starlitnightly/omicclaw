@@ -72,7 +72,7 @@ Object.assign(SingleCellAnalysis.prototype, {
         const pkg    = this._envGetPkg();
         const mirror = (document.getElementById('env-mirror-select') || {}).value || '';
         const extra  = (document.getElementById('env-pip-extra') || {}).value?.trim() || '';
-        let cmd = `uv pip install ${pkg}`;
+        let cmd = `uv pip install --python <current-env-python> ${pkg}`;
         if (mirror) cmd += ` --index-url ${mirror}`;
         if (extra)  cmd += ` ${extra}`;
         const el = document.getElementById('env-pip-preview');
@@ -198,6 +198,7 @@ Object.assign(SingleCellAnalysis.prototype, {
                     try {
                         const evt = JSON.parse(line.slice(6));
                         if (evt.type === 'cmd')      this._envLog('$ ' + evt.text + '\n', 'cmd');
+                        else if (evt.type === 'info')   this._envLog(evt.text, 'cmd');
                         else if (evt.type === 'output') this._envLog(evt.text);
                         else if (evt.type === 'error')  this._envLog(evt.text + '\n', 'error');
                         else if (evt.type === 'complete') {
@@ -205,6 +206,9 @@ Object.assign(SingleCellAnalysis.prototype, {
                                 ? this.t('env.installSuccess')
                                 : `${this.t('env.installFailed')} (code ${evt.returncode})`;
                             this._envLog('\n' + msg + '\n', evt.success ? 'ok' : 'error');
+                            if (evt.success) {
+                                this.loadEnvInfo();
+                            }
                         }
                     } catch {}
                 }

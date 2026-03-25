@@ -9,6 +9,7 @@ import sys
 import base64
 import logging
 import traceback
+import importlib
 import threading
 import time
 import uuid
@@ -218,6 +219,9 @@ class InProcessKernelExecutor:
                 if user_ns is not None:
                     self._ensure_user_ns_runtime(user_ns)
                     self.shell.user_ns = user_ns
+                # Refresh importlib file finder caches so packages installed at
+                # runtime become importable without restarting the whole app.
+                importlib.invalidate_caches()
                 if adata is not None:
                     self.shell.user_ns['odata'] = adata
                     self.shell.user_ns['adata'] = adata

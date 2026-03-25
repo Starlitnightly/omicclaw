@@ -131,7 +131,10 @@ Object.assign(SingleCellAnalysis.prototype, {
                             <input id="server-browser-path-input" type="text"
                                    class="form-control form-control-sm border-0 bg-transparent p-0 shadow-none"
                                    style="font-size:0.75rem;font-family:monospace;"
-                                   placeholder="输入路径后按 Enter 跳转…" autocomplete="off" spellcheck="false">
+                                   placeholder="输入路径后按 Enter 或点击跳转…" autocomplete="off" spellcheck="false">
+                            <button type="button" id="server-browser-go-btn"
+                                    class="btn btn-sm btn-outline-secondary ms-2 py-0 px-2"
+                                    style="font-size:0.72rem;flex-shrink:0;">跳转</button>
                         </div>
                         <div id="server-browser-back-row"
                              style="display:none;border-bottom:1px solid var(--bs-border-color,#dee2e6);">
@@ -166,15 +169,52 @@ Object.assign(SingleCellAnalysis.prototype, {
         div.querySelector('#server-browser-path-input').addEventListener('keydown', (e) => {
             if (e.key !== 'Enter') return;
             e.preventDefault();
-            const typed = e.target.value.trim();
-            const rel = this._absToServerRelPath(typed);
-            this._loadServerBrowserPath(rel);
+            this._navigateServerBrowserToInput();
+        });
+        div.querySelector('#server-browser-go-btn').addEventListener('click', () => {
+            this._navigateServerBrowserToInput();
         });
 
         return div;
     },
 
-    // Navigate the server file browser to an absolute path (empty = default to file_root).
+    _navigateServerBrowserToInput() {
+        const pathInput = document.getElementById('server-browser-path-input');
+        if (!pathInput) return;
+        const target = this._normalizeServerBrowserPath(pathInput.value || '');
+        this._loadServerBrowserPath(target);
+    },
+
+    _normalizeServerBrowserPath(rawPath) {
+        const typed = String(rawPath || '').trim();
+        if (!typed) return '';
+
+        const pathInput = document.getElementById('server-browser-path-input');
+        const currentAbs = pathInput?.dataset.currentAbs || '';
+        const userHomeAbs = pathInput?.dataset.userHomeAbs || '';
+
+        if (typed === '~') {
+            return userHomeAbs || '';
+        }
+        if (typed.startsWith('~/') || typed.startsWith('~\\')) {
+            if (!userHomeAbs) return typed.slice(2);
+            const suffix = typed.slice(2).replace(/^[/\\]+/, '');
+            const sep = userHomeAbs.includes('\\') ? '\\' : '/';
+            return userHomeAbs.endsWith(sep) ? `${userHomeAbs}${suffix}` : `${userHomeAbs}${sep}${suffix}`;
+        }
+
+        const isWindowsAbs = /^[A-Za-z]:[\\/]/.test(typed) || typed.startsWith('\\\\');
+        const isUnixAbs = typed.startsWith('/');
+        if (isWindowsAbs || isUnixAbs) {
+            return typed;
+        }
+
+        if (!currentAbs) return typed;
+        const sep = currentAbs.includes('\\') ? '\\' : '/';
+        return currentAbs.endsWith(sep) ? `${currentAbs}${typed}` : `${currentAbs}${sep}${typed}`;
+    },
+
+    // Navigate the server file browser to an absolute path (empty = default to user home).
     _loadServerBrowserPath(absPath) {
         const listEl   = document.getElementById('server-browser-list');
         const pathInput = document.getElementById('server-browser-path-input');
@@ -194,7 +234,12 @@ Object.assign(SingleCellAnalysis.prototype, {
                 }
 
                 // Update editable path input
-                if (pathInput) pathInput.value = data.current_abs || '';
+                if (pathInput) {
+                    pathInput.value = data.current_abs || '';
+                    pathInput.dataset.currentAbs = data.current_abs || '';
+                    pathInput.dataset.userHomeAbs = data.user_home_abs || '';
+                    pathInput.dataset.fileRootAbs = data.file_root_abs || '';
+                }
 
                 // Back button: disabled at filesystem root
                 if (backRow) {
