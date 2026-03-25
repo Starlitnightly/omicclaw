@@ -40,7 +40,7 @@ body.view-code-active .page-toolbar {
 
 body.view-code-active .editor-tabs {
     display: flex;
-    min-height: 30px;
+    min-height: 26px;
     align-items: flex-end;
     gap: 2px;
     padding: 0 6px;
@@ -49,6 +49,7 @@ body.view-code-active .editor-tabs {
     border-radius: 12px 12px 0 0;
     background: rgba(246, 248, 247, 0.98);
     overflow-x: auto;
+    overflow-y: hidden;
     margin: 0 !important;
 }
 
@@ -145,15 +146,20 @@ body.view-code-active .editor-tabs {
 .editor-tab {
     position: relative;
     top: 0;
-    min-height: 28px;
+    min-height: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
     border-radius: 0;
     border-color: transparent;
     border-bottom: 2px solid transparent;
     background: transparent;
     color: #6a7b73;
-    padding: 0.22rem 0.56rem 0.28rem;
+    padding: 0 0.52rem;
+    line-height: 1;
     box-shadow: none;
     white-space: nowrap;
+    box-sizing: border-box;
 }
 
 .editor-tab.active {
@@ -171,8 +177,8 @@ body.view-code-active .editor-tabs {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1rem;
+    height: 1rem;
     border-radius: 999px;
 }
 
@@ -185,37 +191,47 @@ body.view-code-active .editor-tabs {
     padding: 0;
 }
 
+body.view-code-active #code-editor-view {
+    margin-top: 10px;
+    height: calc(100dvh - 98px);
+    min-height: 0;
+    overflow: hidden;
+}
+
 .editor-workspace-shell {
-    min-height: calc(100vh - 172px);
+    min-height: 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
 }
 
 .editor-stage-shell {
-    min-height: calc(100vh - 172px);
+    min-height: 0;
+    height: 100%;
     border: 1px solid rgba(15, 23, 42, 0.08);
     border-radius: 14px;
     background: #f5f8f6;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 body.view-code-active .main-content {
     padding-top: 0 !important;
-}
-
-body.view-code-active #code-editor-view {
-    margin-top: 0;
+    height: calc(100dvh - 88px);
+    overflow: hidden;
 }
 
 body.view-code-active .editor-workspace-shell > .row {
     flex: 1 1 auto;
     min-height: 0;
+    height: 100%;
     margin: 0;
 }
 
 body.view-code-active .editor-workspace-shell > .row > .col-12 {
     padding: 0;
+    height: 100%;
 }
 
 body.view-code-active #code-editor-toolbar-row {
@@ -255,12 +271,14 @@ body.view-code-active .file-manager-item {
 #md-file-view,
 #var-detail-view,
 #image-file-view {
-    min-height: calc(100vh - 172px);
+    min-height: 0;
+    flex: 1 1 auto;
 }
 
 #code-cells-container {
     padding: 0 6px 24vh !important;
     background: #f5f8f6;
+    overflow: auto;
 }
 
 .code-cell {
@@ -322,21 +340,28 @@ body.view-code-active .file-manager-item {
 }
 
 .cell-toolbar {
-    flex: 1;
+    flex: 0 0 auto;
+    margin-left: auto;
     justify-content: flex-end;
     gap: 3px;
     padding: 0;
     opacity: 1;
+    align-items: center;
+    flex-wrap: nowrap;
 }
 
 .cell-toolbar .form-select {
     height: 22px !important;
-    min-width: 72px;
+    width: auto !important;
+    min-width: 68px;
+    max-width: 84px;
+    flex: 0 0 auto;
     border: 1px solid rgba(15, 23, 42, 0.08);
     border-radius: 7px;
     background: rgba(255, 255, 255, 0.84);
     font-size: 0.64rem !important;
     font-weight: 600;
+    padding-right: 1.35rem;
 }
 
 .cell-toolbar .btn {
