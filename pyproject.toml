@@ -34,6 +34,7 @@ dependencies = [
   "ipykernel",
   "nbformat",
   "omicverse>=2.0.8",
+  "omicverse-skills",
   "scanpy>=1.9",
   "numpy>=1.23",
   "pandas>=1.5",
@@ -72,7 +73,6 @@ packages = [
   "omicclaw.server.common.fbs",
   "omicclaw.server.common.fbs.NetEncoding",
   "omicclaw.server.data_adaptor",
-  "omicverse_skills",
 ]
 
 [tool.setuptools.package-dir]
@@ -86,7 +86,6 @@ omicclaw = "."
 "omicclaw.server.common.fbs" = "server/common/fbs"
 "omicclaw.server.common.fbs.NetEncoding" = "server/common/fbs/NetEncoding"
 "omicclaw.server.data_adaptor" = "server/data_adaptor"
-omicverse_skills = "src/omicverse_skills"
 
 [tool.setuptools.package-data]
 omicclaw = [
@@ -96,9 +95,6 @@ omicclaw = [
   "server/**",
   "static/**",
   "fbs/**",
-]
-omicverse_skills = [
-  "skills/**",
 ]
 
 [tool.setuptools.exclude-package-data]
