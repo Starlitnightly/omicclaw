@@ -7073,9 +7073,37 @@ print(f"HVG count: {adata.var.highly_variable.sum()}")`,
 // Global functions for backward compatibility
 let singleCellApp;
 
+/**
+ * Disable autocapitalize / autocorrect / spellcheck on all text inputs and
+ * textareas so the editor behaves like JupyterLab (no OS-level "corrections").
+ * Runs once on load and again via MutationObserver for dynamically added nodes.
+ */
+function disableInputAutoCorrect(root) {
+    (root || document).querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input[type="url"], input:not([type]), textarea').forEach(el => {
+        el.setAttribute('autocapitalize', 'none');
+        el.setAttribute('autocorrect', 'off');
+        if (!el.hasAttribute('autocomplete')) {
+            el.setAttribute('autocomplete', 'off');
+        }
+        el.setAttribute('spellcheck', 'false');
+    });
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     singleCellApp = new SingleCellAnalysis();
+
+    // Apply to all existing inputs
+    disableInputAutoCorrect();
+
+    // Apply to any inputs added dynamically (modals, tool panels, etc.)
+    new MutationObserver(mutations => {
+        mutations.forEach(m => m.addedNodes.forEach(node => {
+            if (node.nodeType !== 1) return;
+            if (node.matches('input, textarea')) disableInputAutoCorrect(node.parentElement);
+            else if (node.querySelector) disableInputAutoCorrect(node);
+        }));
+    }).observe(document.body, { childList: true, subtree: true });
     
     // Setup parameter dialog
     document.getElementById('runToolBtn').addEventListener('click', function() {
