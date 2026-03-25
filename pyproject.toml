@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omicclaw"
-version = "2.0.8"
+version = "2.0.9rc1"
 description = "OmicClaw gateway-first workspace for web UI, channels, notebooks, and agent workflows"
 readme = "README.md"
 requires-python = ">=3.8"

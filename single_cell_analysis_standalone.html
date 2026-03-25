@@ -70,6 +70,9 @@
     <link rel="stylesheet" href="static/css/code-editor-layout.css">
     <link rel="stylesheet" href="static/css/code-editor-dark.css">
     <link rel="stylesheet" href="static/css/resizable-sidebar.css">
+    <link rel="stylesheet" href="static/css/single-cell-refresh.css">
+    <link rel="stylesheet" href="static/css/workbench-views-refresh.css">
+    <link rel="stylesheet" href="static/css/code-editor-refresh.css">
 </head>
 
 <body>
@@ -597,88 +600,13 @@
     <!-- Main Content -->
     <main class="nxl-container">
         <div class="nxl-content">
-            <div class="page-toolbar" id="code-editor-toolbar-row">
-                <div id="code-editor-toolbar">
-                    <span class="code-toolbar-label" data-i18n="toolbar.kernel">Kernel</span>
-                    <div class="code-toolbar-group">
-                        <select class="form-select form-select-sm" id="kernel-select">
-                            <option value="python3">Python 3 (ipykernel)</option>
-                        </select>
-                    </div>
-                    <div class="code-toolbar-separator"></div>
-                    <div class="code-toolbar-group">
-                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.runCurrentCell()" title="Run current cell" data-i18n-title="toolbar.runCurrent">
-                            <i class="feather-play"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.addCodeCellAtCurrent()" title="Add cell" data-i18n-title="toolbar.addCell">
-                            <i class="feather-plus"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.saveActiveFile()" title="Save" data-i18n-title="toolbar.save">
-                            <i class="feather-save"></i>
-                        </button>
-                    </div>
-                    <div class="code-toolbar-separator"></div>
-                    <div class="code-toolbar-group">
-                        <button type="button"
-                                class="btn btn-sm btn-outline-danger"
-                                id="interrupt-btn"
-                                onclick="singleCellApp.interruptExecution()"
-                                style="display: none;"
-                                title="Stop execution"
-                                data-i18n-title="toolbar.interrupt">
-                            <i class="fas fa-stop"></i> <span data-i18n="toolbar.interrupt">Interrupt</span>
-                        </button>
-                        <button type="button"
-                                class="btn btn-sm btn-outline-warning"
-                                id="restart-kernel-btn"
-                                onclick="singleCellApp.restartKernel()"
-                                title="Restart kernel"
-                                data-i18n-title="toolbar.restartKernel">
-                            <i class="fas fa-redo"></i>
-                        </button>
-                    </div>
-                    <div class="code-toolbar-separator"></div>
-                    <div class="code-toolbar-group">
-                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.insertTemplate()" title="Insert template" data-i18n-title="toolbar.insertTemplate">
-                            <i class="feather-file-text"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.undoLastNotebookAction()" title="Undo last action">
-                            <i class="feather-refresh-cw"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.clearAllCells()" title="Clear all" data-i18n-title="toolbar.clearAll">
-                            <i class="feather-trash-2"></i>
-                        </button>
-                    </div>
-                    <div class="code-toolbar-separator"></div>
-                    <div class="code-toolbar-group">
-                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.adjustFontSize(-1)" title="Decrease font" data-i18n-title="toolbar.fontDown">
-                            A-
-                        </button>
-                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.adjustFontSize(1)" title="Increase font" data-i18n-title="toolbar.fontUp">
-                            A+
-                        </button>
-                    </div>
-                    <div class="code-toolbar-separator"></div>
-                    <span class="code-toolbar-label">DF</span>
-                    <div class="code-toolbar-group code-toolbar-group-df-limit">
-                        <label for="df-preview-max-rows" class="code-toolbar-mini-label" title="DataFrame max rows">Rows</label>
-                        <input id="df-preview-max-rows" type="number" class="form-control form-control-sm code-toolbar-mini-input" min="1" max="500" step="1" value="50">
-                        <label for="df-preview-max-cols" class="code-toolbar-mini-label" title="DataFrame max cols">Cols</label>
-                        <input id="df-preview-max-cols" type="number" class="form-control form-control-sm code-toolbar-mini-input" min="1" max="200" step="1" value="20">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Editor Tabs — below toolbar, shared across views -->
-            <div class="editor-tabs" id="editor-tabs"></div>
-
             <!-- Main Content -->
             <div class="main-content">
                 <!-- Visualization View -->
                 <div id="visualization-view" class="content-view">
-                <div class="row">
+                <div class="row workspace-grid">
                     <!-- Parameter Settings Panel (left of UMAP) -->
-                    <div class="col-lg-3 d-flex flex-column">
+                    <div class="col-lg-3 d-flex flex-column workspace-sidebar-col">
                         <!-- left-main-panel: all three left cards share one flex column
                              so collapsing adata-status lets analysis-status move up -->
                         <div id="left-main-panel" class="d-flex flex-column gap-2">
@@ -718,13 +646,13 @@
                     </div>
 
                     <!-- Main Visualization Panel -->
-                    <div class="col-lg-9">
+                    <div class="col-lg-9 workspace-main-col">
                         <!-- File Upload Area — split into Analysis & Preview -->
-                        <div id="upload-section" class="mb-4">
+                        <div id="upload-section" class="workspace-upload-strip mb-4">
                             <div class="row g-3">
                                 <!-- Left: Analysis Mode (full load) -->
                                 <div class="col-md-6">
-                                    <div class="file-upload-area" id="dropZone" style="cursor: pointer; height: 100%; min-height: 180px;">
+                                    <div class="file-upload-area upload-card upload-card-analysis" id="dropZone" style="cursor: pointer; height: 100%; min-height: 180px;">
                                         <i class="fas fa-cloud-upload-alt fa-2x text-primary mb-2"></i>
                                         <h6 class="fw-bold text-primary" data-i18n="upload.analysisMode">分析读取模式</h6>
                                         <p class="text-muted small mb-2" data-i18n="upload.analysisModeDesc">完整加载数据到内存，支持所有分析功能</p>
@@ -737,7 +665,7 @@
                                 </div>
                                 <!-- Right: Preview Mode (backed='r') -->
                                 <div class="col-md-6">
-                                    <div class="file-upload-area border-secondary" id="dropZonePreview" style="cursor: pointer; height: 100%; min-height: 180px; border-style: dashed; border-color: #6c757d !important;">
+                                    <div class="file-upload-area upload-card upload-card-preview" id="dropZonePreview" style="cursor: pointer; height: 100%; min-height: 180px; border-style: dashed;">
                                         <i class="fas fa-eye fa-2x text-secondary mb-2"></i>
                                         <h6 class="fw-bold text-secondary" data-i18n="upload.previewMode">仅预览模式</h6>
                                         <p class="text-muted small mb-2" data-i18n="upload.previewModeDesc">低内存读取，不支持分析操作（backed='r'）</p>
@@ -752,7 +680,7 @@
                         </div>
 
                         <!-- Data Status -->
-                        <div id="data-status" class="status-info d-none">
+                        <div id="data-status" class="status-info workspace-status-strip d-none">
                             <!-- Row 1: filename + action buttons -->
                             <div class="d-flex justify-content-between align-items-start">
                                 <div style="min-width:0; flex:1;">
@@ -1521,9 +1449,85 @@
                 <!-- End Visualization View -->
 
                 <!-- Code Editor View -->
-                <div id="code-editor-view" class="content-view" style="display: none;">
+                <div id="code-editor-view" class="content-view workbench-pane workbench-pane-editor" style="display: none;">
+                    <div class="editor-workspace-shell">
                     <div class="row h-100">
                         <div class="col-12">
+                            <div class="editor-stage-shell">
+                            <div class="editor-tabs" id="editor-tabs"></div>
+
+                            <div class="page-toolbar" id="code-editor-toolbar-row">
+                                <div id="code-editor-toolbar">
+                                    <span class="code-toolbar-label" data-i18n="toolbar.kernel">Kernel</span>
+                                    <div class="code-toolbar-group">
+                                        <select class="form-select form-select-sm" id="kernel-select">
+                                            <option value="python3">Python 3 (ipykernel)</option>
+                                        </select>
+                                    </div>
+                                    <div class="code-toolbar-separator"></div>
+                                    <div class="code-toolbar-group">
+                                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.runCurrentCell()" title="Run current cell" data-i18n-title="toolbar.runCurrent">
+                                            <i class="feather-play"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.addCodeCellAtCurrent()" title="Add cell" data-i18n-title="toolbar.addCell">
+                                            <i class="feather-plus"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.saveActiveFile()" title="Save" data-i18n-title="toolbar.save">
+                                            <i class="feather-save"></i>
+                                        </button>
+                                    </div>
+                                    <div class="code-toolbar-separator"></div>
+                                    <div class="code-toolbar-group">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger"
+                                                id="interrupt-btn"
+                                                onclick="singleCellApp.interruptExecution()"
+                                                style="display: none;"
+                                                title="Stop execution"
+                                                data-i18n-title="toolbar.interrupt">
+                                            <i class="fas fa-stop"></i> <span data-i18n="toolbar.interrupt">Interrupt</span>
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-warning"
+                                                id="restart-kernel-btn"
+                                                onclick="singleCellApp.restartKernel()"
+                                                title="Restart kernel"
+                                                data-i18n-title="toolbar.restartKernel">
+                                            <i class="fas fa-redo"></i>
+                                        </button>
+                                    </div>
+                                    <div class="code-toolbar-separator"></div>
+                                    <div class="code-toolbar-group">
+                                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.insertTemplate()" title="Insert template" data-i18n-title="toolbar.insertTemplate">
+                                            <i class="feather-file-text"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.undoLastNotebookAction()" title="Undo last action">
+                                            <i class="feather-refresh-cw"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.clearAllCells()" title="Clear all" data-i18n-title="toolbar.clearAll">
+                                            <i class="feather-trash-2"></i>
+                                        </button>
+                                    </div>
+                                    <div class="code-toolbar-separator"></div>
+                                    <div class="code-toolbar-group">
+                                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.adjustFontSize(-1)" title="Decrease font" data-i18n-title="toolbar.fontDown">
+                                            A-
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-light" onclick="singleCellApp.adjustFontSize(1)" title="Increase font" data-i18n-title="toolbar.fontUp">
+                                            A+
+                                        </button>
+                                    </div>
+                                    <div class="code-toolbar-separator"></div>
+                                    <span class="code-toolbar-label">DF</span>
+                                    <div class="code-toolbar-group code-toolbar-group-df-limit">
+                                        <label for="df-preview-max-rows" class="code-toolbar-mini-label" title="DataFrame max rows">Rows</label>
+                                        <input id="df-preview-max-rows" type="number" class="form-control form-control-sm code-toolbar-mini-input" min="1" max="500" step="1" value="50">
+                                        <label for="df-preview-max-cols" class="code-toolbar-mini-label" title="DataFrame max cols">Cols</label>
+                                        <input id="df-preview-max-cols" type="number" class="form-control form-control-sm code-toolbar-mini-input" min="1" max="200" step="1" value="20">
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Cells Container -->
                             <div id="code-cells-container" class="overflow-auto p-3" style="max-width: none; margin: 0;">
                                 <!-- Code cells will be added here -->
@@ -1543,13 +1547,15 @@
                             <div id="image-file-view" class="image-file-view">
                                 <img id="image-file-content" alt="image preview">
                             </div>
+                            </div>
                         </div>
+                    </div>
                     </div>
                 </div>
                 <!-- End Code Editor View -->
 
                 <!-- Agent View -->
-                <div id="agent-view" class="content-view" style="display: none;">
+                <div id="agent-view" class="content-view workbench-pane workbench-pane-agent" style="display: none;">
                     <div class="agent-view">
                         <div class="agent-panel">
                             <div class="agent-panel-header">
@@ -1623,7 +1629,7 @@
                 <!-- End Agent View -->
 
                 <!-- Skills View -->
-                <div id="skills-view" class="content-view" style="display: none;">
+                <div id="skills-view" class="content-view workbench-pane workbench-pane-skills" style="display: none;">
                     <div class="skills-view-shell">
                         <div class="skills-hero">
                             <div>
@@ -1672,7 +1678,7 @@
                 <!-- End Skills View -->
 
                 <!-- Account View -->
-                <div id="account-view" class="content-view" style="display: none;">
+                <div id="account-view" class="content-view workbench-pane workbench-pane-account" style="display: none;">
                     <div class="account-view-shell">
                         <div class="account-hero">
                             <div class="account-hero-avatar" id="account-view-avatar">G</div>
@@ -1759,7 +1765,8 @@
                 <!-- End Account View -->
 
                 <!-- Gateway View -->
-                <div id="gateway-view" class="content-view" style="display:none;">
+                <div id="gateway-view" class="content-view workbench-pane workbench-pane-gateway" style="display:none;">
+                    <div class="gateway-view-shell">
                     <div id="gw-tab-overview" class="gw-tab-pane">
                         <div class="row g-3 mb-4">
                             <div class="col-md-3">
@@ -1921,11 +1928,12 @@
                             </div>
                         </div>
                     </div>
+                    </div>
                 </div>
                 <!-- End Gateway View -->
 
                 <!-- Terminal View — fills nxl-container; session list is in nxl-navigation -->
-                <div id="terminal-view" class="content-view term-full-view" style="display:none;">
+                <div id="terminal-view" class="content-view term-full-view workbench-pane workbench-pane-terminal" style="display:none;">
                     <div id="term-panels"></div>
                 </div>
                 <!-- End Terminal View -->

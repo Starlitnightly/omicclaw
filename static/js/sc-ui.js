@@ -832,8 +832,27 @@ Object.assign(SingleCellAnalysis.prototype, {
         const editorTabs = document.getElementById('editor-tabs');
         if (editorTabs) editorTabs.style.display = 'none';
 
-        // Toggle body class so CSS can zero out main-content padding in code view
-        document.body.classList.toggle('view-code-active', view === 'code');
+        // Expose active workbench view to CSS without changing DOM ids used by JS.
+        const body = document.body;
+        [
+            'view-viz-active',
+            'view-code-active',
+            'view-agent-active',
+            'view-skills-active',
+            'view-account-active',
+            'view-terminal-active',
+            'view-gateway-active'
+        ].forEach(cls => body.classList.remove(cls));
+        body.classList.add(
+            view === 'visualization' ? 'view-viz-active' :
+            view === 'code' ? 'view-code-active' :
+            view === 'agent' ? 'view-agent-active' :
+            view === 'skills' ? 'view-skills-active' :
+            view === 'account' ? 'view-account-active' :
+            view === 'terminal' ? 'view-terminal-active' :
+            view === 'gateway' ? 'view-gateway-active' :
+            'view-viz-active'
+        );
 
         if (view === 'visualization') {
             if (vizView) vizView.style.display = 'block';

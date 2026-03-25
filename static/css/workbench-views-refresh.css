@@ -1,0 +1,469 @@
+.workbench-pane-agent,
+.workbench-pane-skills,
+.workbench-pane-account,
+.workbench-pane-gateway,
+.workbench-pane-terminal {
+    padding-top: 0.4rem;
+}
+
+.workbench-pane-agent .agent-view,
+.workbench-pane-skills .skills-view-shell,
+.workbench-pane-account .account-view-shell,
+.workbench-pane-gateway .gateway-view-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+}
+
+.workbench-pane-agent .agent-view {
+    padding: 0;
+}
+
+.workbench-pane-agent .agent-panel {
+    min-height: calc(100vh - 190px);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 28px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 251, 248, 0.96) 100%);
+    box-shadow: 0 30px 60px -42px rgba(15, 23, 42, 0.34);
+    overflow: hidden;
+}
+
+.workbench-pane-agent .agent-panel-header,
+.workbench-pane-agent .agent-harness-panel,
+.workbench-pane-gateway .card-header,
+.workbench-pane-account .account-panel-head {
+    background:
+        linear-gradient(180deg, rgba(247, 251, 248, 0.96) 0%, rgba(255, 255, 255, 0.90) 100%);
+}
+
+.workbench-pane-agent .agent-panel-header {
+    padding: 18px 22px;
+    border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+.workbench-pane-agent .agent-panel-title {
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
+    color: #14281d;
+}
+
+.workbench-pane-agent .agent-panel-actions,
+.workbench-pane-agent .agent-harness-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.workbench-pane-agent .agent-session-badge,
+.workbench-pane-agent .agent-harness-badge,
+.workbench-pane-gateway .badge,
+.workbench-pane-account .account-kicker,
+.skills-kicker {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 0.75rem;
+    border-radius: 999px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.workbench-pane-agent .agent-session-badge {
+    background: rgba(15, 23, 42, 0.06);
+    color: #54665c;
+    font-size: 0.72rem;
+}
+
+.workbench-pane-agent .agent-harness-panel {
+    padding: 16px 22px 18px;
+    border-bottom-color: rgba(15, 23, 42, 0.08);
+    gap: 12px;
+}
+
+.workbench-pane-agent .agent-harness-title,
+.workbench-pane-agent .agent-harness-subtitle {
+    color: #31483d;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.workbench-pane-agent .agent-harness-meta,
+.workbench-pane-agent .agent-harness-badges {
+    gap: 8px;
+}
+
+.workbench-pane-agent .agent-harness-badge {
+    background: rgba(19, 198, 101, 0.10);
+    border: 1px solid rgba(19, 198, 101, 0.14);
+    color: #0f9e51;
+    font-size: 0.72rem;
+}
+
+.workbench-pane-agent .agent-harness-columns {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.workbench-pane-agent .agent-harness-column {
+    border-radius: 18px;
+    border-color: rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.74);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.workbench-pane-agent .agent-harness-list,
+.workbench-pane-agent .agent-harness-trace {
+    padding: 0 14px 14px;
+}
+
+.workbench-pane-agent .agent-messages {
+    padding: 22px;
+    background:
+        radial-gradient(circle at top left, rgba(19, 198, 101, 0.08), transparent 22%),
+        linear-gradient(180deg, rgba(247, 251, 248, 0.95) 0%, rgba(255, 255, 255, 0.98) 100%);
+}
+
+.workbench-pane-agent .agent-message {
+    max-width: min(76%, 760px);
+    padding: 14px 16px;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 18px;
+    box-shadow: 0 20px 40px -36px rgba(15, 23, 42, 0.30);
+}
+
+.workbench-pane-agent .agent-message.user {
+    background: linear-gradient(135deg, rgba(19, 198, 101, 0.14) 0%, rgba(255, 255, 255, 0.96) 100%);
+    color: #0d5132;
+}
+
+.workbench-pane-agent .agent-message.assistant {
+    background: rgba(255, 255, 255, 0.94);
+    color: #153223;
+}
+
+.workbench-pane-agent .agent-input {
+    gap: 10px;
+    padding: 14px;
+    border-top-color: rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.90);
+}
+
+.workbench-pane-agent .agent-input textarea {
+    min-height: 52px;
+    border-radius: 16px;
+    border-color: rgba(15, 23, 42, 0.10);
+    padding: 13px 14px;
+}
+
+.workbench-pane-skills .skills-hero,
+.workbench-pane-account .account-hero,
+.workbench-pane-account .account-panel,
+.workbench-pane-gateway .card,
+.workbench-pane-gateway #gw-memory-docs,
+.workbench-pane-gateway #gw-channel-cards,
+.workbench-pane-gateway #gw-sessions-list {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 24px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 251, 248, 0.96) 100%);
+    box-shadow: 0 24px 48px -38px rgba(15, 23, 42, 0.32);
+}
+
+.workbench-pane-skills .skills-hero {
+    margin-bottom: 1.2rem;
+    padding: 1.5rem 1.6rem;
+}
+
+.workbench-pane-skills .skills-title,
+.workbench-pane-account .account-title {
+    font-size: clamp(1.55rem, 2.2vw, 2rem);
+    letter-spacing: -0.02em;
+}
+
+.workbench-pane-skills .skills-toolbar {
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 18px 36px -34px rgba(15, 23, 42, 0.34);
+}
+
+.workbench-pane-skills .skills-search-wrap input {
+    min-height: 46px;
+    border-radius: 999px;
+}
+
+.workbench-pane-skills .skills-layout-toggle {
+    padding: 0.28rem;
+    background: rgba(15, 23, 42, 0.04);
+}
+
+.workbench-pane-skills .skills-grid {
+    margin-top: 1.15rem;
+    gap: 1.1rem;
+}
+
+.workbench-pane-skills .skill-card {
+    min-height: 252px;
+    border-radius: 22px;
+    border-color: rgba(15, 23, 42, 0.08);
+    padding: 1.15rem;
+    box-shadow: 0 24px 46px -38px rgba(15, 23, 42, 0.32);
+}
+
+.workbench-pane-skills .skill-card:hover {
+    transform: translateY(-3px);
+}
+
+.workbench-pane-account .account-view-shell {
+    display: grid;
+    gap: 1.2rem;
+}
+
+.workbench-pane-account .account-hero {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.4rem 1.5rem;
+}
+
+.workbench-pane-account .account-hero-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(135deg, #13c665 0%, #0ea5e9 100%);
+    box-shadow: 0 26px 44px -28px rgba(14, 165, 233, 0.45);
+}
+
+.workbench-pane-account .account-hero-copy {
+    flex: 1;
+}
+
+.workbench-pane-account .account-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.workbench-pane-account .account-card {
+    padding: 1.15rem 1.2rem;
+    border-radius: 22px;
+}
+
+.workbench-pane-account .account-card-value {
+    font-size: 1.08rem;
+    line-height: 1.35;
+}
+
+.workbench-pane-account .account-panel {
+    padding: 1.35rem 1.45rem;
+}
+
+.workbench-pane-account .account-panel-head {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.workbench-pane-account .account-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.workbench-pane-gateway .gateway-view-shell {
+    display: grid;
+    gap: 1rem;
+}
+
+.workbench-pane-gateway .gw-tab-pane {
+    display: grid;
+    gap: 1rem;
+}
+
+.workbench-pane-gateway .card {
+    overflow: hidden;
+}
+
+.workbench-pane-gateway .card .card-body {
+    padding: 1.1rem !important;
+}
+
+.workbench-pane-gateway .fs-2 {
+    letter-spacing: -0.03em;
+}
+
+.workbench-pane-gateway #gw-sessions-list,
+.workbench-pane-gateway #gw-memory-docs,
+.workbench-pane-gateway #gw-channel-cards {
+    min-height: 180px;
+    padding: 1rem;
+}
+
+.workbench-pane-terminal #term-panels {
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 26px;
+    overflow: hidden;
+    box-shadow: 0 28px 54px -36px rgba(15, 23, 42, 0.42);
+}
+
+#status-bar {
+    left: calc(var(--sidebar-width) + 18px) !important;
+    right: 18px;
+    bottom: 18px !important;
+    width: auto;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 28px 48px -36px rgba(15, 23, 42, 0.34);
+    overflow: hidden;
+}
+
+#status-bar .container-fluid {
+    padding: 0 0.85rem;
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-panel,
+html.app-skin-dark .workbench-pane-skills .skills-hero,
+html.app-skin-dark .workbench-pane-account .account-hero,
+html.app-skin-dark .workbench-pane-account .account-panel,
+html.app-skin-dark .workbench-pane-gateway .card,
+html.app-skin-dark .workbench-pane-gateway #gw-memory-docs,
+html.app-skin-dark .workbench-pane-gateway #gw-channel-cards,
+html.app-skin-dark .workbench-pane-gateway #gw-sessions-list,
+html.app-skin-dark #status-bar {
+    background:
+        linear-gradient(180deg, rgba(11, 18, 14, 0.98) 0%, rgba(9, 15, 12, 0.98) 100%);
+    border-color: rgba(148, 163, 184, 0.12) !important;
+    box-shadow: 0 30px 56px -40px rgba(0, 0, 0, 0.86);
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-panel-header,
+html.app-skin-dark .workbench-pane-agent .agent-harness-panel,
+html.app-skin-dark .workbench-pane-gateway .card-header,
+html.app-skin-dark .workbench-pane-account .account-panel-head {
+    background: linear-gradient(180deg, rgba(13, 22, 17, 0.96) 0%, rgba(10, 16, 13, 0.94) 100%);
+    border-color: rgba(148, 163, 184, 0.12);
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-panel-title,
+html.app-skin-dark .workbench-pane-agent .agent-harness-title,
+html.app-skin-dark .workbench-pane-agent .agent-harness-subtitle,
+html.app-skin-dark .workbench-pane-account .account-title,
+html.app-skin-dark .workbench-pane-account .account-card-value,
+html.app-skin-dark .workbench-pane-gateway .card-header,
+html.app-skin-dark .workbench-pane-gateway .text-dark {
+    color: #eef7f1 !important;
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-harness-column {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(148, 163, 184, 0.12);
+    box-shadow: none;
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-session-badge {
+    background: rgba(255, 255, 255, 0.05);
+    color: #a5bbb0;
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-harness-badge {
+    background: rgba(19, 198, 101, 0.16);
+    border-color: rgba(19, 198, 101, 0.18);
+    color: #86efac;
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-messages,
+html.app-skin-dark .workbench-pane-agent .agent-input {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(148, 163, 184, 0.12);
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-message.assistant,
+html.app-skin-dark .workbench-pane-agent .agent-message.user {
+    border-color: rgba(148, 163, 184, 0.10);
+    box-shadow: none;
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-message.assistant {
+    background: rgba(255, 255, 255, 0.03);
+    color: #e5f1ea;
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-message.user {
+    background: linear-gradient(135deg, rgba(19, 198, 101, 0.18) 0%, rgba(255, 255, 255, 0.04) 100%);
+    color: #baf3cf;
+}
+
+html.app-skin-dark .workbench-pane-agent .agent-input textarea,
+html.app-skin-dark .workbench-pane-gateway .form-control,
+html.app-skin-dark .workbench-pane-gateway .form-select,
+html.app-skin-dark .workbench-pane-account .form-control {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(148, 163, 184, 0.12);
+    color: #edf6f0;
+}
+
+html.app-skin-dark .workbench-pane-account .account-hero-avatar {
+    box-shadow: 0 26px 44px -28px rgba(19, 198, 101, 0.35);
+}
+
+html.app-skin-dark .workbench-pane-terminal #term-panels {
+    border-color: rgba(148, 163, 184, 0.12);
+    box-shadow: 0 30px 54px -36px rgba(0, 0, 0, 0.88);
+}
+
+@media (max-width: 1199px) {
+    .workbench-pane-account .account-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 991px) {
+    .workbench-pane-agent .agent-harness-columns,
+    .workbench-pane-account .account-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .workbench-pane-gateway .row.g-3 > [class*="col-md-"] {
+        width: 100%;
+    }
+
+    #status-bar {
+        left: calc(var(--sidebar-width) + 12px) !important;
+        right: 12px;
+        bottom: 12px !important;
+    }
+}
+
+@media (max-width: 767px) {
+    .workbench-pane-skills .skills-hero,
+    .workbench-pane-account .account-hero {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .workbench-pane-skills .skills-toolbar,
+    .workbench-pane-skills .skills-toolbar-right {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .workbench-pane-skills .skills-search-wrap {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+    }
+
+    .workbench-pane-account .account-grid {
+        grid-template-columns: 1fr;
+    }
+}
