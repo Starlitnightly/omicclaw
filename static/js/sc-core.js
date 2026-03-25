@@ -72,6 +72,7 @@ class SingleCellAnalysis {
         this.checkStatus();
         this.showParameterPlaceholder();
         this.startMemoryMonitor();
+        this.startVersionCheck();
         this.updateAdataStatus(null);
         this.applyCodeFontSize();
         this.fetchKernelVars();

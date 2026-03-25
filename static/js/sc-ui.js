@@ -2705,6 +2705,33 @@ Object.assign(SingleCellAnalysis.prototype, {
         return { rows, cols };
     },
 
+    // ── Version Check ───────────────────────────────────────────────────────
+
+    startVersionCheck() {
+        this.checkVersion();
+        // Re-check every hour
+        setInterval(() => this.checkVersion(), 3600 * 1000);
+    },
+
+    checkVersion() {
+        fetch('/api/version')
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data) return;
+                const textEl = document.getElementById('version-bar-text');
+                const updateRow = document.getElementById('version-update-row');
+                const updateLink = document.getElementById('version-update-link');
+                const updateText = document.getElementById('version-update-text');
+                if (textEl) textEl.textContent = `v${data.current}`;
+                if (data.update_available && updateRow && updateText && updateLink) {
+                    updateText.textContent = `v${data.latest} available`;
+                    updateLink.href = data.pypi_url || 'https://pypi.org/project/omicclaw/';
+                    updateRow.style.display = 'block';
+                }
+            })
+            .catch(() => {});
+    },
+
     // ── Memory Bar ──────────────────────────────────────────────────────────
 
     startMemoryMonitor() {

@@ -58,7 +58,65 @@ def _run_web(argv: Sequence[str] | None = None) -> int:
     return web_main(_normalize_argv(argv))
 
 
+def _check_and_apply_update() -> None:
+    """Check PyPI for a newer omicclaw version and self-update via uv pip install -U.
+
+    Runs silently in the background. Prints a one-line notice if an update is found
+    and applied. Does nothing if uv is not available or network is unreachable.
+    """
+    import threading
+    threading.Thread(target=_update_worker, daemon=True).start()
+
+
+def _update_worker() -> None:
+    import subprocess, time
+    from importlib.metadata import version as pkg_version, PackageNotFoundError
+    try:
+        current = pkg_version("omicclaw")
+    except PackageNotFoundError:
+        return
+
+    try:
+        import urllib.request, json as _json
+        with urllib.request.urlopen(
+            "https://pypi.org/pypi/omicclaw/json", timeout=5
+        ) as resp:
+            data = _json.loads(resp.read())
+        latest = data["info"]["version"]
+    except Exception:
+        return
+
+    # Simple version comparison — avoid heavy packaging dependency at startup
+    def _ver_tuple(v: str):
+        import re
+        return tuple(int(x) for x in re.findall(r"\d+", v))
+
+    if _ver_tuple(latest) <= _ver_tuple(current):
+        return  # already up to date
+
+    # Find uv executable
+    import shutil
+    uv = shutil.which("uv")
+    if not uv:
+        print(f"\033[33m[omicclaw] New version {latest} available (current: {current}). Run: uv pip install -U omicclaw\033[0m", flush=True)
+        return
+
+    print(f"\033[32m[omicclaw] Updating {current} → {latest}...\033[0m", flush=True)
+    try:
+        result = subprocess.run(
+            [uv, "pip", "install", "-U", "omicclaw"],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode == 0:
+            print(f"\033[32m[omicclaw] Updated to {latest}. Restart to apply.\033[0m", flush=True)
+        else:
+            print(f"\033[33m[omicclaw] Auto-update failed: {result.stderr.strip()}\033[0m", flush=True)
+    except Exception as e:
+        print(f"\033[33m[omicclaw] Auto-update error: {e}\033[0m", flush=True)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    _check_and_apply_update()
     # When called as the console-script entry point argv is None; read sys.argv.
     args = list(sys.argv[1:] if argv is None else argv)
     if args:

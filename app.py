@@ -1475,6 +1475,79 @@ def get_status():
 
 
 # ============================================================================
+# Version Endpoint
+# ============================================================================
+
+# Module-level cache for PyPI version result
+_pypi_version_cache: dict = {"version": None, "timestamp": 0.0}
+_PYPI_CACHE_TTL = 3600  # seconds
+
+
+def _fetch_pypi_version_bg() -> None:
+    """Fetch the latest omicclaw version from PyPI and update the module-level cache."""
+    try:
+        import urllib.request as _urllib_req
+        import json as _json_mod
+        with _urllib_req.urlopen("https://pypi.org/pypi/omicclaw/json", timeout=5) as resp:
+            data = _json_mod.loads(resp.read())
+        latest = data["info"]["version"]
+        _pypi_version_cache["version"] = latest
+        _pypi_version_cache["timestamp"] = time.time()
+    except Exception:
+        pass
+
+
+@app.route('/api/version', methods=['GET'])
+def api_version():
+    """Return current and latest omicclaw version with update availability."""
+    # Resolve current version
+    try:
+        from importlib.metadata import version as _pkg_version
+        current = _pkg_version('omicclaw')
+    except Exception:
+        try:
+            import tomllib as _tomllib
+        except ImportError:
+            try:
+                import tomli as _tomllib  # type: ignore
+            except ImportError:
+                _tomllib = None  # type: ignore
+        if _tomllib is not None:
+            try:
+                _pyproject = Path(__file__).parent / 'pyproject.toml'
+                with open(_pyproject, 'rb') as _f:
+                    _toml = _tomllib.load(_f)
+                current = _toml['project']['version']
+            except Exception:
+                current = 'unknown'
+        else:
+            current = 'unknown'
+
+    # Refresh PyPI cache in background if stale
+    if time.time() - _pypi_version_cache["timestamp"] > _PYPI_CACHE_TTL:
+        t = threading.Thread(target=_fetch_pypi_version_bg, daemon=True)
+        t.start()
+
+    latest = _pypi_version_cache.get("version")
+
+    # Determine update availability
+    update_available = False
+    if latest and current and current != 'unknown':
+        try:
+            from packaging.version import Version as _PkgVersion
+            update_available = _PkgVersion(latest) > _PkgVersion(current)
+        except Exception:
+            update_available = latest != current
+
+    return jsonify({
+        "current": current,
+        "latest": latest,
+        "update_available": update_available,
+        "pypi_url": "https://pypi.org/project/omicclaw/",
+    })
+
+
+# ============================================================================
 # Trajectory Visualization Endpoints
 # ============================================================================
 

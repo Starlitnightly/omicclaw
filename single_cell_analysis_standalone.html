@@ -416,6 +416,19 @@
                 </span>
             </div>
         </div>
+        <!-- Version & Update Check -->
+        <div id="version-bar-container" style="padding: 4px 12px 8px; flex-shrink: 0;">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="small text-muted" style="font-size:0.68rem;">OmicClaw</span>
+                <span id="version-bar-text" class="small text-muted" style="font-size:0.68rem; font-variant-numeric: tabular-nums;">v--</span>
+            </div>
+            <div id="version-update-row" style="display:none; margin-top:2px;">
+                <a id="version-update-link" href="https://pypi.org/project/omicclaw/" target="_blank" rel="noopener"
+                   style="font-size:0.65rem; color: #28a745; text-decoration: none;">
+                    ↑ <span id="version-update-text"></span>
+                </a>
+            </div>
+        </div>
         <!-- Resizable sidebar handle (JupyterLab-like) -->
         <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
     </nav>
