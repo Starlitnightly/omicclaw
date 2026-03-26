@@ -103,6 +103,12 @@ Object.assign(SingleCellAnalysis.prototype, {
             authModal.addEventListener('hidden.bs.modal', () => {
                 this._authReturnView = null;
                 this.updateGatewayAccess();
+                // If the user dismissed without logging in and gateway view is still active,
+                // redirect away regardless of hydration state.
+                if (!this.accountUser && !this.getAccountToken() &&
+                    this.currentView === 'gateway' && typeof this.switchView === 'function') {
+                    this.switchView('visualization');
+                }
             });
         }
     },
@@ -173,6 +179,12 @@ Object.assign(SingleCellAnalysis.prototype, {
             return;
         }
         this._forceLoginPrompted = true;
+        // Move away from gateway before prompting — openAuthModal does not call
+        // updateGatewayAccess, so without this the gateway view stays visible
+        // behind the modal and is not hidden on dismiss.
+        if (this.currentView === 'gateway' && typeof this.switchView === 'function') {
+            this.switchView('visualization');
+        }
         this.openAuthModal('login');
     },
 
