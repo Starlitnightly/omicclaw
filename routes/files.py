@@ -22,6 +22,18 @@ from utils.file_helpers import (
 bp = Blueprint('files', __name__)
 
 
+def _is_desktop_app_path(path: Path) -> bool:
+    normalized = str(path.resolve()).replace('\\', '/').lower()
+    return ".app/contents/" in normalized or normalized.endswith(".app")
+
+
+def _default_absolute_browser_root(file_root: Path) -> Path:
+    launch_root = Path(file_root).resolve()
+    if _is_desktop_app_path(launch_root):
+        return Path.home().resolve()
+    return launch_root
+
+
 @bp.route('/list', methods=['GET'])
 def list_files():
     """List files and directories at given path."""
@@ -72,7 +84,7 @@ def list_files_abs():
     if abs_path:
         target = Path(abs_path).resolve()
     else:
-        target = Path.home().resolve()  # default: user home directory
+        target = _default_absolute_browser_root(bp.file_root)
 
     if not target.exists() or not target.is_dir():
         return jsonify({'error': 'Directory not found'}), 404
