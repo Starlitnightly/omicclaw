@@ -13,6 +13,7 @@ import asyncio
 import threading
 import logging
 import uuid
+from pathlib import Path
 from typing import Any, Optional, Generator
 
 from omicverse.utils.harness import STREAM_EVENT_TYPES as AGENT_EVENT_TYPES
@@ -112,14 +113,57 @@ def _looks_like_oauth_jwt(token: str) -> bool:
     return token.startswith("eyJ") and token.count(".") >= 2
 
 
-def _should_use_openai_oauth(endpoint: Optional[str], api_key: str) -> bool:
+def _normalize_auth_mode(auth_mode: Optional[str]) -> str:
+    mode = str(auth_mode or "").strip().lower()
+    if mode == "openai_codex":
+        return "openai_oauth"
+    if mode == "saved_api_key":
+        return "openai_api_key"
+    return mode
+
+
+def _requested_auth_mode(config: Optional[dict[str, Any]]) -> str:
+    if not isinstance(config, dict):
+        return ""
+    return _normalize_auth_mode(
+        config.get("authMode") or config.get("auth_mode") or ""
+    )
+
+
+def _requested_auth_provider(config: Optional[dict[str, Any]]) -> str:
+    if not isinstance(config, dict):
+        return "codex"
+    provider = str(
+        config.get("authProvider") or config.get("auth_provider") or "codex"
+    ).strip().lower()
+    if provider in {"", "openai", "openai_codex"}:
+        return "codex"
+    if provider not in {"codex", "gemini_cli"}:
+        return "codex"
+    return provider
+
+
+def _should_use_openai_oauth(
+    endpoint: Optional[str],
+    api_key: str,
+    auth_mode: Optional[str] = None,
+    auth_provider: Optional[str] = None,
+) -> bool:
     endpoint_text = str(endpoint or "").strip().rstrip("/")
+    normalized_auth_mode = _normalize_auth_mode(auth_mode)
+    normalized_auth_provider = str(auth_provider or "codex").strip().lower()
     auth_data = _load_ovjarvis_auth()
     tokens = auth_data.get("tokens") or {}
     saved_access_token = str(tokens.get("access_token") or "").strip()
     saved_account_id = str(tokens.get("account_id") or "").strip()
     explicit_api_key = str(api_key or "").strip()
 
+    if normalized_auth_mode == "openai_oauth" and normalized_auth_provider != "codex":
+        return False
+    if normalized_auth_mode == "openai_oauth":
+        return True
+    if normalized_auth_mode == "openai_api_key":
+        return "chatgpt.com" in endpoint_text or _looks_like_oauth_jwt(explicit_api_key)
     if "chatgpt.com" in endpoint_text:
         return True
     if _looks_like_oauth_jwt(explicit_api_key):
@@ -150,6 +194,8 @@ def get_agent_instance(config):
     model = config.get('model') or 'gpt-5'
     api_key = config.get('apiKey') or ''
     endpoint = config.get('apiBase') or None
+    auth_mode = _requested_auth_mode(config)
+    auth_provider = _requested_auth_provider(config)
     agent_kwargs = {
         'model': model,
         'endpoint': endpoint or None,
@@ -157,24 +203,36 @@ def get_agent_instance(config):
     }
     auth_signature = ''
 
+    if auth_mode == 'openai_oauth' and auth_provider == 'gemini_cli':
+        agent_kwargs['auth_mode'] = 'gemini_cli_oauth'
+        agent_kwargs['auth_provider'] = auth_provider
+        agent_kwargs['auth_file'] = str(Path.home() / ".ovjarvis" / "auth.json")
+        auth_signature = json.dumps((_load_ovjarvis_auth().get('oauth_providers') or {}).get('gemini_cli') or {}, sort_keys=True)
+
     # Prefer the newer ov.Agent OAuth flow whenever the current credentials
     # look like Codex / ChatGPT OAuth, even if the UI endpoint is still the
     # default OpenAI API URL.
-    if _should_use_openai_oauth(endpoint, api_key):
+    if _should_use_openai_oauth(endpoint, api_key, auth_mode, auth_provider):
         try:
             from pathlib import Path as _Path
+            from omicverse.jarvis.openai_oauth import OPENAI_CODEX_BASE_URL
             auth_file = _Path.home() / ".ovjarvis" / "auth.json"
             api_key, account_id = _resolve_chatgpt_backend_auth(api_key)
             auth_signature = json.dumps((_load_ovjarvis_auth().get('tokens') or {}), sort_keys=True)
             if account_id:
                 os.environ["CHATGPT_ACCOUNT_ID"] = account_id
             agent_kwargs['auth_mode'] = 'openai_oauth'
+            agent_kwargs['auth_provider'] = auth_provider
             agent_kwargs['auth_file'] = str(auth_file)
             if _looks_like_oauth_jwt(api_key):
                 agent_kwargs['api_key'] = api_key
+            # Always redirect to the Codex backend when using OAuth —
+            # the standard OpenAI API endpoint does not accept OAuth tokens.
+            if not endpoint or "chatgpt.com" not in str(endpoint):
+                agent_kwargs['endpoint'] = OPENAI_CODEX_BASE_URL
         except Exception:
             pass
-    else:
+    elif not agent_kwargs.get('auth_mode'):
         agent_kwargs['api_key'] = api_key or None
         auth_signature = api_key
 
@@ -185,8 +243,9 @@ def get_agent_instance(config):
     signature = json.dumps({
         'model': model,
         'key_hash': key_hash,
-        'endpoint': endpoint,
+        'endpoint': agent_kwargs.get('endpoint', endpoint),
         'auth_mode': agent_kwargs.get('auth_mode', 'api_key'),
+        'auth_provider': auth_provider,
     }, sort_keys=True)
 
     # Only recreate agent if configuration changed

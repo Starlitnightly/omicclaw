@@ -224,10 +224,24 @@
                             </summary>
                             <div class="px-3 pb-2">
                                 <div class="mb-2">
+                                    <label class="form-label mb-1" for="agent-auth-mode" data-i18n="agent.authMode">Auth Mode</label>
+                                    <select class="form-select form-select-sm" id="agent-auth-mode">
+                                        <option value="openai_api_key" data-i18n="common.authModeApiKey">API Key</option>
+                                        <option value="openai_oauth" data-i18n="common.authModeOAuth">OAuth</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2" id="agent-oauth-provider-group">
+                                    <label class="form-label mb-1" for="agent-oauth-provider" data-i18n="agent.oauthProvider">OAuth Provider</label>
+                                    <select class="form-select form-select-sm" id="agent-oauth-provider">
+                                        <option value="codex" data-i18n="common.oauthProviderCodex">Codex</option>
+                                        <option value="gemini_cli" data-i18n="common.oauthProviderGeminiCli">Gemini CLI</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2" id="agent-api-base-group">
                                     <label class="form-label mb-1" for="agent-api-base" data-i18n="agent.apiBase">API Base URL</label>
                                     <input type="text" class="form-control form-control-sm" id="agent-api-base" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1">
                                 </div>
-                                <div class="mb-2">
+                                <div class="mb-2" id="agent-api-key-group">
                                     <label class="form-label mb-1" for="agent-api-key" data-i18n="agent.apiKey">API Key</label>
                                     <input type="password" class="form-control form-control-sm" id="agent-api-key" placeholder="sk-...">
                                     <div class="form-check mt-1">
@@ -259,11 +273,23 @@
                                     <label class="form-label mb-1" for="agent-system-prompt" data-i18n="agent.systemPrompt">System Prompt</label>
                                     <textarea class="form-control form-control-sm" id="agent-system-prompt" rows="3" placeholder="You are a single-cell analysis assistant..." data-i18n-placeholder="agent.systemPromptPlaceholder"></textarea>
                                 </div>
-                                <div class="d-flex gap-2">
+                                <div class="d-flex gap-2 flex-wrap">
                                     <button class="btn btn-sm btn-primary" type="button" onclick="singleCellApp.saveAgentConfig()" data-i18n="agent.save">Save</button>
                                     <button class="btn btn-sm btn-light" type="button" onclick="singleCellApp.resetAgentConfig()" data-i18n="agent.reset">Reset</button>
+                                    <button class="btn btn-sm btn-outline-info" type="button" onclick="singleCellApp.testAgentConfig()" data-i18n="agent.testConnection">Test</button>
                                 </div>
-                                <small class="text-muted d-block mt-2" data-i18n="agent.keyNotice">API key is stored in session memory only. Check "Remember" to persist across browser sessions.</small>
+                                <div class="d-flex align-items-center gap-2 mt-2 flex-wrap" id="agent-oauth-group">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" id="agent-oauth-connect-btn" onclick="singleCellApp.startAgentOAuth()">
+                                        <i class="feather-zap me-1"></i><span id="agent-oauth-connect-label" data-i18n="gateway.oauthConnectWith">Connect with {provider}</span>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" id="agent-oauth-import-btn" onclick="singleCellApp.importAgentOAuth()">
+                                        <i class="feather-download me-1"></i><span id="agent-oauth-import-label" data-i18n="gateway.oauthImportFrom">Import {provider} Auth</span>
+                                    </button>
+                                    <span id="agent-oauth-status" class="badge bg-secondary" style="font-size:0.68rem;" data-i18n="gateway.oauthNotLinked">not linked</span>
+                                </div>
+                                <div id="agent-gemini-warning" class="alert alert-warning py-2 px-3 mt-2 mb-0" style="display:none;font-size:0.82rem;" data-i18n="gateway.geminiCliWarning">This is an unofficial integration; some users report account restrictions. Use at your own risk.</div>
+                                <div id="agent-test-result" class="mt-1" style="font-size:0.82rem;display:none;"></div>
+                                <small class="text-muted d-block mt-2" id="agent-key-notice" data-i18n="agent.keyNotice">API key is stored in session memory only. Check "Remember" to persist across browser sessions.</small>
                             </div>
                         </details>
                     </li>
@@ -1840,19 +1866,33 @@
                                 </div>
                             </div>
                             <div class="card-body p-3">
-                                <!-- Row 1: model / api-key / endpoint -->
+                                <!-- Row 1: model / auth / api-key / endpoint -->
                                 <div class="row g-2">
                                     <div class="col-md-3">
                                         <label class="form-label small fw-semibold mb-1" data-i18n="gateway.model">Model</label>
                                         <input type="text" id="gw-llm-model" class="form-control form-control-sm" placeholder="gpt-4o, claude-sonnet-4-6...">
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold mb-1" for="gw-llm-auth-mode" data-i18n="gateway.authMode">Auth Mode</label>
+                                        <select id="gw-llm-auth-mode" class="form-select form-select-sm">
+                                            <option value="openai_api_key" data-i18n="common.authModeApiKey">API Key</option>
+                                            <option value="openai_oauth" data-i18n="common.authModeOAuth">OAuth</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2" id="gw-llm-oauth-provider-group">
+                                        <label class="form-label small fw-semibold mb-1" for="gw-llm-oauth-provider" data-i18n="gateway.oauthProvider">OAuth Provider</label>
+                                        <select id="gw-llm-oauth-provider" class="form-select form-select-sm">
+                                            <option value="codex" data-i18n="common.oauthProviderCodex">Codex</option>
+                                            <option value="gemini_cli" data-i18n="common.oauthProviderGeminiCli">Gemini CLI</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2" id="gw-llm-api-key-group">
                                         <label class="form-label small fw-semibold mb-1"><span data-i18n="gateway.apiKey">API Key</span>
                                             <span id="gw-llm-key-badge" class="badge bg-secondary ms-1" style="font-size:0.68rem;" data-i18n="gateway.secret.notSet">not set</span>
                                         </label>
                                         <input type="password" id="gw-llm-api-key" class="form-control form-control-sm" placeholder="sk-... (leave empty to keep existing)" data-i18n-placeholder="gateway.apiKeyKeepPlaceholder">
                                     </div>
-                                    <div class="col-md-5">
+                                    <div class="col-md-3" id="gw-llm-endpoint-group">
                                         <label class="form-label small fw-semibold mb-1"><span data-i18n="gateway.apiEndpoint">API Endpoint</span> <span class="text-muted fw-normal" data-i18n="gateway.optional">(optional)</span></label>
                                         <input type="text" id="gw-llm-endpoint" class="form-control form-control-sm" placeholder="https://api.openai.com/v1">
                                     </div>
@@ -1884,15 +1924,16 @@
                                     </div>
                                 </div>
                                 <!-- Row 4: Codex OAuth -->
-                                <div class="d-flex align-items-center gap-2 mt-2">
-                                    <button class="btn btn-sm btn-outline-secondary" onclick="singleCellApp.startCodexOAuth()">
-                                        <i class="feather-zap me-1"></i><span data-i18n="gateway.codexLogin">Connect with Codex</span>
+                                <div class="d-flex align-items-center gap-2 mt-2" id="gw-llm-oauth-group">
+                                    <button class="btn btn-sm btn-outline-secondary" id="gw-llm-oauth-connect-btn" onclick="singleCellApp.startGatewayOAuth()">
+                                        <i class="feather-zap me-1"></i><span id="gw-llm-oauth-connect-label" data-i18n="gateway.oauthConnectWith">Connect with {provider}</span>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-secondary" onclick="singleCellApp.importCodexAuth()">
-                                        <i class="feather-download me-1"></i><span data-i18n="gateway.codexImport">Import Codex Auth</span>
+                                    <button class="btn btn-sm btn-outline-secondary" id="gw-llm-oauth-import-btn" onclick="singleCellApp.importGatewayOAuth()">
+                                        <i class="feather-download me-1"></i><span id="gw-llm-oauth-import-label" data-i18n="gateway.oauthImportFrom">Import {provider} Auth</span>
                                     </button>
-                                    <span id="gw-codex-status" class="badge bg-secondary" style="font-size:0.68rem;" data-i18n="gateway.codexNotLinked">not linked</span>
+                                    <span id="gw-oauth-status" class="badge bg-secondary" style="font-size:0.68rem;" data-i18n="gateway.oauthNotLinked">not linked</span>
                                 </div>
+                                <div id="gw-gemini-warning" class="alert alert-warning py-2 px-3 mt-2 mb-0" style="display:none;font-size:0.82rem;" data-i18n="gateway.geminiCliWarning">This is an unofficial integration; some users report account restrictions. Use at your own risk.</div>
                                 <div id="gw-llm-save-result" class="mt-2" style="font-size:0.82rem;display:none;"></div>
                             </div>
                         </div>

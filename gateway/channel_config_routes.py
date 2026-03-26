@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -36,9 +37,9 @@ channel_config_bp = Blueprint("channel_config", __name__)
 _PROCESSES: dict[str, subprocess.Popen] = {}
 _PROCESS_LOCK = threading.Lock()
 
-# Codex OAuth flow state — lives for one login attempt
-_codex_oauth_state: dict = {"status": "idle"}
-_codex_oauth_lock = threading.Lock()
+# OAuth flow state — keyed by provider, one active login attempt each
+_OAUTH_FLOW_STATES: dict[str, dict] = {}
+_OAUTH_FLOW_LOCK = threading.RLock()
 
 # Latest lifecycle snapshot for each channel. This is shared by the config
 # endpoint, auto-start bootstrap, and the per-channel start/stop handlers.
@@ -125,6 +126,7 @@ DEFAULT_CONFIG: dict = {
     "channel": None,
     "model": "gpt-4o",
     "auth_mode": "openai_api_key",
+    "auth_provider": "codex",
     "endpoint": None,
     "session_dir": None,
     "max_prompts": 0,
@@ -167,6 +169,11 @@ DEFAULT_CONFIG: dict = {
         "image_server_port": 8081,
         "markdown": False,
     },
+}
+
+_OAUTH_PROVIDER_LABELS: dict[str, str] = {
+    "codex": "Codex",
+    "gemini_cli": "Gemini CLI",
 }
 
 # --------------------------------------------------------------------------
@@ -252,14 +259,233 @@ def _read_auth_data() -> dict:
         return {}
 
 
+def _write_auth_data(data: dict) -> None:
+    p = _auth_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w") as f:
+        json.dump(data, f, indent=2)
+
+
 def _read_codex_access_token() -> str:
     auth = _read_auth_data()
-    return str((auth.get("tokens") or {}).get("access_token") or "").strip()
+    token = str((auth.get("tokens") or {}).get("access_token") or "").strip()
+    if token:
+        return token
+    providers = dict(auth.get("oauth_providers") or {})
+    return str((((providers.get("codex") or {}).get("tokens") or {}).get("access_token")) or "").strip()
 
 
 def _read_codex_account_id() -> str:
     auth = _read_auth_data()
-    return str((auth.get("tokens") or {}).get("account_id") or "").strip()
+    account_id = str((auth.get("tokens") or {}).get("account_id") or "").strip()
+    if account_id:
+        return account_id
+    providers = dict(auth.get("oauth_providers") or {})
+    return str((((providers.get("codex") or {}).get("tokens") or {}).get("account_id")) or "").strip()
+
+
+def _looks_like_oauth_jwt(token: str) -> bool:
+    token = str(token or "").strip()
+    return token.startswith("eyJ") and token.count(".") >= 2
+
+
+def _normalize_auth_mode(value: Optional[str]) -> str:
+    mode = str(value or "").strip().lower()
+    if mode == "openai_codex":
+        return "openai_oauth"
+    if mode == "saved_api_key":
+        return "openai_api_key"
+    return mode or "openai_api_key"
+
+
+def _normalize_auth_provider(value: Optional[str]) -> str:
+    provider = str(value or "").strip().lower()
+    if provider in {"", "openai", "openai_codex"}:
+        return "codex"
+    return provider if provider in _OAUTH_PROVIDER_LABELS else "codex"
+
+
+def _oauth_provider_label(provider: Optional[str]) -> str:
+    return _OAUTH_PROVIDER_LABELS.get(_normalize_auth_provider(provider), "OAuth")
+
+
+def _oauth_flow_state(provider: Optional[str]) -> dict:
+    normalized = _normalize_auth_provider(provider)
+    with _OAUTH_FLOW_LOCK:
+        state = _OAUTH_FLOW_STATES.get(normalized)
+        if state is None:
+            state = {"status": "idle", "provider": normalized}
+            _OAUTH_FLOW_STATES[normalized] = state
+        return state
+
+
+def _parse_expiry_epoch(value: object) -> Optional[int]:
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        epoch = float(value)
+        if epoch > 1_000_000_000_000:
+            epoch /= 1000.0
+        return int(epoch)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        epoch = float(text)
+        if epoch > 1_000_000_000_000:
+            epoch /= 1000.0
+        return int(epoch)
+    except Exception:
+        pass
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        return int(datetime.fromisoformat(text).timestamp())
+    except Exception:
+        return None
+
+
+def _expiry_is_expired(epoch: Optional[int], skew_seconds: int = 300) -> bool:
+    if not epoch:
+        return True
+    return int(datetime.now(timezone.utc).timestamp()) >= (int(epoch) - skew_seconds)
+
+
+def _read_live_gemini_cli_auth() -> dict:
+    auth_file = Path.home() / ".gemini" / "oauth_creds.json"
+    if not auth_file.exists():
+        return {}
+    try:
+        raw = json.loads(auth_file.read_text())
+    except Exception:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    access_token = str(
+        raw.get("access_token")
+        or raw.get("accessToken")
+        or raw.get("access")
+        or ""
+    ).strip()
+    refresh_token = str(
+        raw.get("refresh_token")
+        or raw.get("refreshToken")
+        or raw.get("refresh")
+        or ""
+    ).strip()
+    if not access_token and not refresh_token:
+        return {}
+    expires_at = _parse_expiry_epoch(
+        raw.get("expires_at")
+        or raw.get("expiresAt")
+        or raw.get("expires")
+        or raw.get("expiry")
+        or raw.get("expiry_date")
+    )
+    return {
+        "provider": "gemini_cli",
+        "source": str(auth_file),
+        "tokens": {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": expires_at,
+            "email": str(raw.get("email") or raw.get("user_email") or raw.get("userEmail") or "").strip(),
+            "project_id": str(raw.get("project_id") or raw.get("projectId") or "").strip(),
+        },
+    }
+
+
+def _read_stored_oauth_provider(provider: Optional[str]) -> dict:
+    normalized = _normalize_auth_provider(provider)
+    auth = _read_auth_data()
+    if normalized == "codex":
+        tokens = dict(auth.get("tokens") or {})
+        if tokens:
+            return {
+                "provider": "codex",
+                "tokens": tokens,
+                "last_refresh": auth.get("last_refresh"),
+            }
+    providers = dict(auth.get("oauth_providers") or {})
+    entry = dict(providers.get(normalized) or {})
+    return entry if isinstance(entry, dict) else {}
+
+
+def _write_oauth_provider(provider: Optional[str], record: dict) -> None:
+    normalized = _normalize_auth_provider(provider)
+    auth = _read_auth_data()
+    providers = dict(auth.get("oauth_providers") or {})
+    providers[normalized] = record
+    auth["oauth_providers"] = providers
+    if normalized == "codex":
+        tokens = dict(record.get("tokens") or {})
+        if tokens:
+            auth["tokens"] = tokens
+        if record.get("last_refresh"):
+            auth["last_refresh"] = record.get("last_refresh")
+        auth["provider"] = "openai-codex"
+    _write_auth_data(auth)
+
+
+def _oauth_status_payload(provider: Optional[str]) -> dict:
+    normalized = _normalize_auth_provider(provider)
+    label = _oauth_provider_label(normalized)
+    if normalized == "codex":
+        from omicverse.jarvis.openai_oauth import token_expired  # type: ignore
+
+        record = _read_stored_oauth_provider("codex")
+        tokens = dict(record.get("tokens") or {})
+        access = str(tokens.get("access_token") or "").strip()
+        account_id = str(tokens.get("account_id") or "").strip()
+        return {
+            "provider": normalized,
+            "provider_label": label,
+            "supported": True,
+            "linked": bool(access),
+            "expired": token_expired(access) if access else True,
+            "account_id": account_id,
+            "email": "",
+            "source": "saved",
+        }
+
+    if normalized == "gemini_cli":
+        try:
+            from omicverse.jarvis.gemini_cli_oauth import GeminiCliOAuthManager, token_expired  # type: ignore
+
+            record = GeminiCliOAuthManager(_auth_path()).load()
+        except Exception:
+            record = _read_stored_oauth_provider("gemini_cli")
+        tokens = dict(record.get("tokens") or {})
+        access = str(tokens.get("access_token") or "").strip()
+        refresh = str(tokens.get("refresh_token") or "").strip()
+        expires_at = _parse_expiry_epoch(tokens.get("expires_at"))
+        return {
+            "provider": normalized,
+            "provider_label": label,
+            "supported": True,
+            "linked": bool(access or refresh),
+            "expired": token_expired(expires_at) if (access or refresh) else True,
+            "account_id": str(tokens.get("project_id") or "").strip(),
+            "email": str(tokens.get("email") or "").strip(),
+            "source": record.get("source") or ("saved" if record else ""),
+        }
+
+    return {
+        "provider": normalized,
+        "provider_label": label,
+        "supported": False,
+        "linked": False,
+        "expired": True,
+        "account_id": "",
+        "email": "",
+        "source": "",
+    }
+
+
+def _write_auth_mode(auth_mode: str) -> None:
+    cfg = _read_config()
+    cfg["auth_mode"] = _normalize_auth_mode(auth_mode)
+    _write_config(cfg)
 
 
 def _resolve_effective_api_key(endpoint: str | None = None, explicit_api_key: str | None = None) -> str:
@@ -406,10 +632,16 @@ def _build_start_command(channel: str, cfg: dict, api_key: str) -> list[str]:
     # new browser window. The gateway UI's fallback subprocess path should only
     # launch the channel backend itself.
     cmd = _find_omicverse_cmd() + ["jarvis", "--channel", channel]
+    auth_mode = _normalize_auth_mode(cfg.get("auth_mode"))
+    auth_provider = _normalize_auth_provider(cfg.get("auth_provider"))
 
     if cfg.get("model"):
         cmd += ["--model", cfg["model"]]
-    if api_key:
+    if auth_mode == "openai_oauth":
+        cmd += ["--auth-mode", "gemini_cli_oauth" if auth_provider == "gemini_cli" else "openai_oauth"]
+    elif auth_mode == "openai_api_key":
+        cmd += ["--auth-mode", "openai_api_key"]
+    if api_key and auth_mode != "openai_oauth":
         cmd += ["--api-key", api_key]
     if cfg.get("endpoint"):
         cmd += ["--endpoint", cfg["endpoint"]]
@@ -659,7 +891,7 @@ def _get_log_buffer(channel: str) -> str:
 
 # --------------------------------------------------------------------------
 # Shared LLM config fields (kept in one place to avoid duplication across routes)
-_LLM_FIELDS = ("model", "endpoint", "temperature", "top_p", "max_tokens", "timeout", "system_prompt")
+_LLM_FIELDS = ("model", "endpoint", "auth_mode", "auth_provider", "temperature", "top_p", "max_tokens", "timeout", "system_prompt")
 _LLM_NULLABLE = frozenset({"model", "endpoint"})  # empty string → None
 
 # Routes
@@ -675,8 +907,14 @@ def get_llm_config():
         {field: cfg.get(field) for field in _LLM_FIELDS}
         | {
             "api_key": api_key,
+            "auth_mode": _normalize_auth_mode(cfg.get("auth_mode")),
+            "auth_provider": _normalize_auth_provider(cfg.get("auth_provider")),
             "codex_linked": bool(_read_codex_access_token()),
             "codex_account_id": _read_codex_account_id(),
+            "oauth_statuses": {
+                provider: _oauth_status_payload(provider)
+                for provider in _OAUTH_PROVIDER_LABELS
+            },
         }
     )
 
@@ -691,11 +929,16 @@ def save_llm_config():
             continue
         val = body[field]
         cfg[field] = None if (val == "" and field in _LLM_NULLABLE) else val
+    explicit_api_key = str(body.get("api_key", "") or "").strip()
+    if "auth_mode" not in body:
+        if cfg.get("endpoint") and "chatgpt.com" in str(cfg.get("endpoint")):
+            cfg["auth_mode"] = "openai_oauth"
+        elif explicit_api_key and not _looks_masked(explicit_api_key):
+            cfg["auth_mode"] = "openai_oauth" if _looks_like_oauth_jwt(explicit_api_key) else "openai_api_key"
     try:
         _write_config(cfg)
-        api_key = body.get("api_key", "")
-        if api_key and not _looks_masked(api_key):
-            _write_api_key(api_key)
+        if explicit_api_key and not _looks_masked(explicit_api_key):
+            _write_api_key(explicit_api_key)
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -704,13 +947,55 @@ def save_llm_config():
 @channel_config_bp.route("/llm/test", methods=["POST"])
 def test_llm_config():
     """Test LLM API key reachability. Body may override {api_key, endpoint}."""
+    from omicverse.jarvis.openai_oauth import token_expired  # type: ignore
+
     body = request.get_json(silent=True) or {}
     cfg = _read_config()
     endpoint = str(body.get("endpoint") or cfg.get("endpoint") or "").strip()
     if not endpoint:
         endpoint = "https://api.openai.com/v1"
     endpoint = endpoint.rstrip("/")
-    api_key = _resolve_effective_api_key(endpoint, str(body.get("api_key") or "").strip())
+    auth_mode = _normalize_auth_mode(body.get("auth_mode") or cfg.get("auth_mode"))
+    auth_provider = _normalize_auth_provider(body.get("auth_provider") or cfg.get("auth_provider"))
+    explicit_api_key = str(body.get("api_key") or "").strip()
+    if auth_mode == "openai_oauth":
+        if auth_provider == "gemini_cli":
+            try:
+                from omicverse.jarvis.gemini_cli_oauth import GeminiCliOAuthError, GeminiCliOAuthManager  # type: ignore
+
+                payload = GeminiCliOAuthManager(_auth_path()).build_api_key_payload(
+                    refresh_if_needed=True,
+                    import_if_missing=True,
+                )
+            except GeminiCliOAuthError as exc:
+                return jsonify({
+                    "ok": False,
+                    "error": (
+                        f"Failed to load Gemini CLI OAuth credentials: {exc}. "
+                        "This is an unofficial integration; some users report account restrictions. "
+                        "Use at your own risk."
+                    ),
+                })
+            if not payload:
+                return jsonify({
+                    "ok": False,
+                    "error": (
+                        "No Gemini CLI OAuth token configured. "
+                        "This is an unofficial integration; some users report account restrictions. "
+                        "Use at your own risk."
+                    ),
+                })
+            return jsonify({"ok": True})
+        api_key = explicit_api_key if _looks_like_oauth_jwt(explicit_api_key) else _read_codex_access_token()
+        if not api_key:
+            return jsonify({"ok": False, "error": "No Codex OAuth token configured"})
+        if token_expired(api_key):
+            return jsonify({"ok": False, "error": "Saved Codex OAuth token has expired"})
+        if not _read_codex_account_id():
+            return jsonify({"ok": False, "error": "Saved Codex OAuth token is missing account_id"})
+        return jsonify({"ok": True})
+
+    api_key = _resolve_effective_api_key(endpoint, explicit_api_key)
     if not api_key:
         return jsonify({"ok": False, "error": "No API key configured"})
     try:
@@ -732,75 +1017,108 @@ def test_llm_config():
         return jsonify({"ok": False, "error": str(exc)})
 
 
-@channel_config_bp.route("/codex/oauth/start", methods=["POST"])
-def codex_oauth_start():
-    """Start Codex PKCE OAuth in a background thread; browser polls /status."""
-    from omicverse.jarvis.openai_oauth import OpenAIOAuthManager  # type: ignore
-    with _codex_oauth_lock:
-        if _codex_oauth_state.get("status") == "pending":
+def _oauth_start(provider: Optional[str]):
+    normalized = _normalize_auth_provider(provider)
+    state = _oauth_flow_state(normalized)
+    with _OAUTH_FLOW_LOCK:
+        if state.get("status") == "pending":
             return jsonify({"ok": False, "error": "OAuth already in progress"})
-        _codex_oauth_state.update({"status": "pending", "error": None, "access_token": None})
+        state.update({"status": "pending", "error": None, "provider": normalized})
 
     auth_path = _auth_path()
 
     def _run() -> None:
         try:
-            mgr = OpenAIOAuthManager(auth_path=auth_path)
-            auth = mgr.login(open_browser=True, timeout_seconds=300)
-            access_token = str((auth.get("tokens") or {}).get("access_token") or "").strip()
-            if access_token:
-                _write_api_key(access_token)
-            with _codex_oauth_lock:
-                _codex_oauth_state.update({"status": "success", "access_token": access_token})
+            if normalized == "codex":
+                from omicverse.jarvis.openai_oauth import OpenAIOAuthManager  # type: ignore
+
+                mgr = OpenAIOAuthManager(auth_path=auth_path)
+                auth = mgr.login(open_browser=True, timeout_seconds=300)
+                _write_oauth_provider("codex", auth)
+            elif normalized == "gemini_cli":
+                from omicverse.jarvis.gemini_cli_oauth import GeminiCliOAuthManager  # type: ignore
+
+                mgr = GeminiCliOAuthManager(auth_path=auth_path)
+                auth = mgr.login(open_browser=True, timeout_seconds=300)
+                _write_oauth_provider("gemini_cli", auth)
+            else:
+                raise RuntimeError(f"Unsupported OAuth provider: {normalized}")
+            with _OAUTH_FLOW_LOCK:
+                _oauth_flow_state(normalized).update({"status": "success", "provider": normalized})
         except Exception as exc:
-            with _codex_oauth_lock:
-                _codex_oauth_state.update({"status": "error", "error": str(exc)})
+            with _OAUTH_FLOW_LOCK:
+                _oauth_flow_state(normalized).update({"status": "error", "error": str(exc), "provider": normalized})
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"ok": True})
 
 
+def _oauth_status(provider: Optional[str]):
+    normalized = _normalize_auth_provider(provider)
+    with _OAUTH_FLOW_LOCK:
+        state = dict(_oauth_flow_state(normalized))
+    state.pop("access_token", None)
+    return jsonify({**state, **_oauth_status_payload(normalized)})
+
+
+def _oauth_import(provider: Optional[str]):
+    normalized = _normalize_auth_provider(provider)
+    if normalized == "codex":
+        from omicverse.jarvis.openai_oauth import OpenAIOAuthManager  # type: ignore
+
+        try:
+            mgr = OpenAIOAuthManager(auth_path=_auth_path())
+            auth = mgr.import_codex_auth()
+            if auth is None:
+                return jsonify({"ok": False, "error": "No valid Codex auth found in ~/.codex/auth.json"})
+            _write_oauth_provider("codex", auth)
+            return jsonify({"ok": True})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)})
+
+    if normalized == "gemini_cli":
+        try:
+            from omicverse.jarvis.gemini_cli_oauth import GeminiCliOAuthManager  # type: ignore
+
+            auth = GeminiCliOAuthManager(_auth_path()).import_gemini_cli_auth()
+            if not auth:
+                return jsonify({"ok": False, "error": "No valid Gemini CLI auth found in ~/.gemini/oauth_creds.json"})
+            _write_oauth_provider("gemini_cli", auth)
+            return jsonify({"ok": True})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)})
+
+    return jsonify({"ok": False, "error": f"Unsupported OAuth provider: {normalized}"})
+
+
+@channel_config_bp.route("/oauth/<provider>/start", methods=["POST"])
+def oauth_start(provider: str):
+    return _oauth_start(provider)
+
+
+@channel_config_bp.route("/oauth/<provider>/status", methods=["GET"])
+def oauth_status(provider: str):
+    return _oauth_status(provider)
+
+
+@channel_config_bp.route("/oauth/<provider>/import", methods=["POST"])
+def oauth_import(provider: str):
+    return _oauth_import(provider)
+
+
+@channel_config_bp.route("/codex/oauth/start", methods=["POST"])
+def codex_oauth_start():
+    return _oauth_start("codex")
+
+
 @channel_config_bp.route("/codex/oauth/status", methods=["GET"])
 def codex_oauth_status():
-    """Return current OAuth flow state plus stored Codex token info."""
-    from omicverse.jarvis.openai_oauth import token_expired  # type: ignore
-    with _codex_oauth_lock:
-        state = dict(_codex_oauth_state)
-    # Remove raw access_token from the response (security)
-    state.pop("access_token", None)
-    # Check stored auth for linked status
-    auth_data: dict = {"linked": False, "expired": True, "account_id": ""}
-    try:
-        p = _auth_path()
-        if p.exists():
-            raw = json.loads(p.read_text())
-            tokens = raw.get("tokens") or {}
-            access = str(tokens.get("access_token") or "").strip()
-            auth_data = {
-                "linked": bool(access),
-                "expired": token_expired(access) if access else True,
-                "account_id": str(tokens.get("account_id") or ""),
-            }
-    except Exception:
-        pass
-    return jsonify({**state, **auth_data})
+    return _oauth_status("codex")
 
 
 @channel_config_bp.route("/codex/oauth/import", methods=["POST"])
 def codex_oauth_import():
-    """Import existing Codex CLI auth from ~/.codex/auth.json."""
-    from omicverse.jarvis.openai_oauth import OpenAIOAuthManager  # type: ignore
-    try:
-        mgr = OpenAIOAuthManager(auth_path=_auth_path())
-        auth = mgr.import_codex_auth()
-        if auth is None:
-            return jsonify({"ok": False, "error": "No valid Codex auth found in ~/.codex/auth.json"})
-        access_token = str((auth.get("tokens") or {}).get("access_token") or "").strip()
-        if access_token:
-            _write_api_key(access_token)
-        return jsonify({"ok": True})
-    except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)})
+    return _oauth_import("codex")
 
 
 @channel_config_bp.route("/config", methods=["GET"])
@@ -833,6 +1151,10 @@ def get_config():
         "secrets_set": secrets_set,          # {section__field: bool}
         "api_key_masked": _mask(api_key),
         "api_key_set": bool(api_key),
+        "oauth_statuses": {
+            provider: _oauth_status_payload(provider)
+            for provider in _OAUTH_PROVIDER_LABELS
+        },
         "processes": list_channel_states(),
         "config_path": str(_config_path()),
     })

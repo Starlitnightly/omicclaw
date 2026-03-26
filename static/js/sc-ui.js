@@ -1351,47 +1351,90 @@ Object.assign(SingleCellAnalysis.prototype, {
         overlay.style.display = 'flex';
     },
 
-    // ── Codex OAuth ────────────────────────────────────────────────────────
+    _formatTemplate(template, vars = {}) {
+        return Object.entries(vars).reduce(
+            (text, [key, value]) => text.replaceAll(`{${key}}`, value == null ? '' : String(value)),
+            String(template || '')
+        );
+    },
+
+    _gatewayOAuthProviderMeta(provider) {
+        const normalized = this._normalizeGatewayAuthProvider(provider);
+        const label = normalized === 'gemini_cli' ? this.t('common.oauthProviderGeminiCli') : this.t('common.oauthProviderCodex');
+        return {
+            provider: normalized,
+            label,
+            title: `${label} OAuth`,
+            startEndpoint: `/api/gateway/channels/oauth/${normalized}/start`,
+            statusEndpoint: `/api/gateway/channels/oauth/${normalized}/status`,
+            importEndpoint: `/api/gateway/channels/oauth/${normalized}/import`,
+            supportsBrowserLogin: normalized === 'codex' || normalized === 'gemini_cli',
+            supportsImport: true,
+        };
+    },
+
+    _selectedGatewayOAuthProvider() {
+        return this._normalizeGatewayAuthProvider((document.getElementById('gw-llm-oauth-provider') || {}).value || 'codex');
+    },
+
+    // ── OAuth ──────────────────────────────────────────────────────────────
 
     _codexOAuthPoller: null,
 
-    startCodexOAuth() {
-        fetch('/api/gateway/channels/codex/oauth/start', { method: 'POST' })
+    startGatewayOAuth() {
+        const meta = this._gatewayOAuthProviderMeta(this._selectedGatewayOAuthProvider());
+        if (!meta.supportsBrowserLogin) {
+            this._showErrorModal(meta.title, this._formatTemplate(this.t('gateway.oauthBrowserUnavailable'), { provider: meta.label }));
+            return;
+        }
+        fetch(meta.startEndpoint, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
-                if (!data.ok) { this._showErrorModal('Codex OAuth', data.error || this.t('common.unknownError')); return; }
-                this._startCodexOAuthPoll();
+                if (!data.ok) { this._showErrorModal(meta.title, data.error || this.t('common.unknownError')); return; }
+                this._startGatewayOAuthPoll(meta.provider);
             })
-            .catch(e => this._showErrorModal('Codex OAuth', e.message));
+            .catch(e => this._showErrorModal(meta.title, e.message));
     },
 
-    importCodexAuth() {
-        fetch('/api/gateway/channels/codex/oauth/import', { method: 'POST' })
+    importGatewayOAuth() {
+        const meta = this._gatewayOAuthProviderMeta(this._selectedGatewayOAuthProvider());
+        fetch(meta.importEndpoint, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
-                if (!data.ok) { this._showErrorModal(this.t('gateway.codexImport'), data.error || this.t('common.unknownError')); return; }
-                this._refreshCodexStatus();
+                if (!data.ok) {
+                    this._showErrorModal(
+                        this._formatTemplate(this.t('gateway.oauthImportFrom'), { provider: meta.label }),
+                        data.error || this.t('common.unknownError')
+                    );
+                    return;
+                }
+                this._refreshGatewayOAuthStatus(undefined, meta.provider);
                 this.loadChannelConfig();
             })
-            .catch(e => this._showErrorModal(this.t('gateway.codexImport'), e.message));
+            .catch(e => this._showErrorModal(this._formatTemplate(this.t('gateway.oauthImportFrom'), { provider: meta.label }), e.message));
     },
 
-    _startCodexOAuthPoll() {
+    _startGatewayOAuthPoll(provider) {
+        const meta = this._gatewayOAuthProviderMeta(provider);
         this._clearCodexOAuthPoll();
-        const badge = document.getElementById('gw-codex-status');
-        if (badge) { badge.textContent = this.t('gateway.codexPending'); badge.className = 'badge bg-warning'; badge.style.fontSize = '0.68rem'; }
+        const badge = document.getElementById('gw-oauth-status');
+        if (badge) {
+            badge.textContent = this.t('gateway.oauthPending');
+            badge.className = 'badge bg-warning';
+            badge.style.fontSize = '0.68rem';
+        }
         this._codexOAuthPoller = setInterval(() => {
-            fetch('/api/gateway/channels/codex/oauth/status')
+            fetch(meta.statusEndpoint)
                 .then(r => r.json())
                 .then(data => {
                     if (data.status === 'success') {
                         this._clearCodexOAuthPoll();
-                        this._refreshCodexStatus();
+                        this._refreshGatewayOAuthStatus(data, meta.provider);
                         this.loadChannelConfig();
                     } else if (data.status === 'error') {
                         this._clearCodexOAuthPoll();
-                        this._showErrorModal('Codex OAuth', data.error || this.t('common.unknownError'));
-                        this._refreshCodexStatus();
+                        this._showErrorModal(meta.title, data.error || this.t('common.unknownError'));
+                        this._refreshGatewayOAuthStatus(data, meta.provider);
                     }
                 })
                 .catch(() => {});
@@ -1402,29 +1445,41 @@ Object.assign(SingleCellAnalysis.prototype, {
         if (this._codexOAuthPoller) { clearInterval(this._codexOAuthPoller); this._codexOAuthPoller = null; }
     },
 
-    _refreshCodexStatus() {
-        fetch('/api/gateway/channels/codex/oauth/status')
+    _refreshGatewayOAuthStatus(data, provider) {
+        const meta = this._gatewayOAuthProviderMeta(provider || this._selectedGatewayOAuthProvider());
+        const applyStatus = (status) => {
+            const badge = document.getElementById('gw-oauth-status');
+            if (!badge) return;
+            badge.style.fontSize = '0.68rem';
+            if (status && status.linked && !status.expired) {
+                const identity = status.email || status.account_id || '';
+                const label = identity
+                    ? `${this._formatTemplate(this.t('gateway.oauthLinked'), { provider: meta.label })}: ${identity}`
+                    : this._formatTemplate(this.t('gateway.oauthLinked'), { provider: meta.label });
+                badge.textContent = label;
+                badge.className = 'badge bg-success';
+            } else if (status && status.linked && status.expired) {
+                badge.textContent = this.t('gateway.oauthExpired');
+                badge.className = 'badge bg-warning';
+            } else {
+                badge.textContent = this.t('gateway.oauthNotLinked');
+                badge.className = 'badge bg-secondary';
+            }
+        };
+        if (data !== undefined) {
+            applyStatus(data);
+            return;
+        }
+        fetch(meta.statusEndpoint)
             .then(r => r.json())
-            .then(data => {
-                const badge = document.getElementById('gw-codex-status');
-                if (!badge) return;
-                badge.style.fontSize = '0.68rem';
-                if (data.linked && !data.expired) {
-                    const label = data.account_id
-                        ? `${this.t('gateway.codexLinked')}: ${data.account_id}`
-                        : this.t('gateway.codexLinked');
-                    badge.textContent = label;
-                    badge.className = 'badge bg-success';
-                } else if (data.linked && data.expired) {
-                    badge.textContent = this.t('gateway.codexExpired');
-                    badge.className = 'badge bg-warning';
-                } else {
-                    badge.textContent = this.t('gateway.codexNotLinked');
-                    badge.className = 'badge bg-secondary';
-                }
-            })
+            .then(applyStatus)
             .catch(() => {});
     },
+
+    startCodexOAuth() { this.startGatewayOAuth(); },
+    importCodexAuth() { this.importGatewayOAuth(); },
+    _startCodexOAuthPoll() { this._startGatewayOAuthPoll('codex'); },
+    _refreshCodexStatus() { this._refreshGatewayOAuthStatus(undefined, 'codex'); },
 
     // ── Channel Configuration ──────────────────────────────────────────────
 
@@ -1443,10 +1498,24 @@ Object.assign(SingleCellAnalysis.prototype, {
 
                 // Fill LLM fields (basic)
                 const m = document.getElementById('gw-llm-model');
+                const a = document.getElementById('gw-llm-auth-mode');
+                const p = document.getElementById('gw-llm-oauth-provider');
                 const e = document.getElementById('gw-llm-endpoint');
                 const badge = document.getElementById('gw-llm-key-badge');
                 const pathEl = document.getElementById('gw-config-path');
                 if (m) m.value = this._gwConfig.model || '';
+                if (a) a.value = this._gwConfig.auth_mode || 'openai_api_key';
+                if (p) p.value = this._normalizeGatewayAuthProvider(this._gwConfig.auth_provider || 'codex');
+                if (a) a.onchange = () => {
+                    this._applyGatewayAuthModeUI(a.value);
+                    if (a.value === 'openai_oauth') {
+                        this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeGatewayAuthProvider((p || {}).value || 'codex')], (p || {}).value || 'codex');
+                    }
+                };
+                if (p) p.onchange = () => {
+                    this._applyGatewayAuthModeUI((a || {}).value || 'openai_oauth');
+                    this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeGatewayAuthProvider(p.value)], p.value);
+                };
                 if (e) e.value = this._gwConfig.endpoint || '';
                 if (badge) {
                     badge.textContent = data.api_key_set ? (this.t('gateway.apiKeySetPrefix') + (data.api_key_masked || '****')) : this.t('gateway.secret.notSet');
@@ -1463,10 +1532,11 @@ Object.assign(SingleCellAnalysis.prototype, {
                 setVal('gw-llm-max-tokens', cfg.max_tokens ?? 2048);
                 setVal('gw-llm-timeout', cfg.timeout ?? 60);
                 setVal('gw-llm-system-prompt', cfg.system_prompt ?? '');
+                this._applyGatewayAuthModeUI((a && a.value) || cfg.auth_mode || 'openai_api_key');
 
                 // Render channel cards
                 this._renderChannelCards();
-                this._refreshCodexStatus();
+                this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeGatewayAuthProvider((p || {}).value || 'codex')], (p || {}).value || 'codex');
             })
             .catch(() => this._renderChannelConfigError());
     },
@@ -1924,6 +1994,67 @@ Object.assign(SingleCellAnalysis.prototype, {
         state.formValues = this._getChannelFormValues('wechat');
     },
 
+    _deriveGatewayAuthMode({ requestedMode, apiKey, endpoint } = {}) {
+        const selected = String(requestedMode || '').trim();
+        const key = String(apiKey || '').trim();
+        const base = String(endpoint || '').trim();
+        if (selected === 'openai_oauth' || selected === 'openai_api_key') return selected;
+        if (base.includes('chatgpt.com')) return 'openai_oauth';
+        if (key.startsWith('eyJ') && key.split('.').length >= 3) return 'openai_oauth';
+        if (key) return 'openai_api_key';
+        return ((this._gwConfig || {}).auth_mode) || 'openai_api_key';
+    },
+
+    _normalizeGatewayAuthProvider(provider) {
+        const normalized = String(provider || '').trim().toLowerCase();
+        if (!normalized || normalized === 'openai' || normalized === 'openai_codex') {
+            return 'codex';
+        }
+        return normalized;
+    },
+
+    _applyGatewayAuthModeUI(mode) {
+        const authModeEl = document.getElementById('gw-llm-auth-mode');
+        const authProviderEl = document.getElementById('gw-llm-oauth-provider');
+        const apiKeyEl = document.getElementById('gw-llm-api-key');
+        const endpointEl = document.getElementById('gw-llm-endpoint');
+        const connectBtn = document.getElementById('gw-llm-oauth-connect-btn');
+        const importBtn = document.getElementById('gw-llm-oauth-import-btn');
+        const connectLabel = document.getElementById('gw-llm-oauth-connect-label');
+        const importLabel = document.getElementById('gw-llm-oauth-import-label');
+        const normalized = this._deriveGatewayAuthMode({
+            requestedMode: mode || (authModeEl || {}).value,
+            apiKey: apiKeyEl ? apiKeyEl.value : '',
+            endpoint: endpointEl ? endpointEl.value : '',
+        });
+        const isOAuth = normalized === 'openai_oauth';
+        const provider = this._normalizeGatewayAuthProvider((authProviderEl || {}).value || 'codex');
+        const meta = this._gatewayOAuthProviderMeta(provider);
+        const isGeminiCli = isOAuth && provider === 'gemini_cli';
+        const setVisible = (id, visible) => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = visible ? '' : 'none';
+        };
+
+        if (authModeEl) authModeEl.value = normalized;
+        if (authProviderEl) {
+            authProviderEl.value = provider;
+            authProviderEl.disabled = !isOAuth;
+        }
+        if (apiKeyEl) apiKeyEl.disabled = isOAuth;
+        if (endpointEl) endpointEl.disabled = isOAuth;
+        if (connectBtn) connectBtn.style.display = isOAuth && meta.supportsBrowserLogin ? '' : 'none';
+        if (importBtn) importBtn.style.display = isOAuth && meta.supportsImport ? '' : 'none';
+        if (connectLabel) connectLabel.textContent = this._formatTemplate(this.t('gateway.oauthConnectWith'), { provider: meta.label });
+        if (importLabel) importLabel.textContent = this._formatTemplate(this.t('gateway.oauthImportFrom'), { provider: meta.label });
+
+        setVisible('gw-llm-oauth-provider-group', isOAuth);
+        setVisible('gw-llm-api-key-group', !isOAuth);
+        setVisible('gw-llm-endpoint-group', !isOAuth);
+        setVisible('gw-llm-oauth-group', isOAuth);
+        setVisible('gw-gemini-warning', isGeminiCli);
+    },
+
     _collectLLMFormValues() {
         const gv = id => (document.getElementById(id) || {}).value || '';
         const gn = (id, fallback) => { const v = parseFloat(gv(id)); return isNaN(v) ? fallback : v; };
@@ -1942,6 +2073,9 @@ Object.assign(SingleCellAnalysis.prototype, {
     testLLMConfig() {
         const apiKey = (document.getElementById('gw-llm-api-key') || {}).value || '';
         const endpoint = (document.getElementById('gw-llm-endpoint') || {}).value || '';
+        const requestedMode = (document.getElementById('gw-llm-auth-mode') || {}).value || '';
+        const authProvider = this._normalizeGatewayAuthProvider((document.getElementById('gw-llm-oauth-provider') || {}).value || 'codex');
+        const authMode = this._deriveGatewayAuthMode({ requestedMode, apiKey, endpoint });
         const resultEl = document.getElementById('gw-llm-save-result');
         if (resultEl) {
             resultEl.style.display = 'block';
@@ -1951,7 +2085,12 @@ Object.assign(SingleCellAnalysis.prototype, {
         fetch('/api/gateway/channels/llm/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key: apiKey || undefined, endpoint: endpoint || undefined }),
+            body: JSON.stringify({
+                api_key: apiKey || undefined,
+                endpoint: endpoint || undefined,
+                auth_mode: authMode,
+                auth_provider: authProvider,
+            }),
         })
         .then(r => r.json())
         .then(data => {
@@ -1975,7 +2114,12 @@ Object.assign(SingleCellAnalysis.prototype, {
     saveLLMConfig() {
         const apiKey = (document.getElementById('gw-llm-api-key') || {}).value || '';
         const llmVals = this._collectLLMFormValues();
+        const requestedMode = (document.getElementById('gw-llm-auth-mode') || {}).value || '';
+        const authProvider = this._normalizeGatewayAuthProvider((document.getElementById('gw-llm-oauth-provider') || {}).value || 'codex');
+        const authMode = this._deriveGatewayAuthMode({ requestedMode, apiKey, endpoint: llmVals.endpoint });
         const cfg = Object.assign({}, this._gwConfig || {}, llmVals);
+        cfg.auth_mode = authMode;
+        cfg.auth_provider = authProvider;
         const resultEl = document.getElementById('gw-llm-save-result');
 
         const doSave = () => {
@@ -1996,9 +2140,25 @@ Object.assign(SingleCellAnalysis.prototype, {
                 }
                 if (data.ok) {
                     this._gwConfig = cfg;
+                    const gatewayAuthModeEl = document.getElementById('gw-llm-auth-mode');
+                    if (gatewayAuthModeEl) gatewayAuthModeEl.value = authMode;
+                    const gatewayAuthProviderEl = document.getElementById('gw-llm-oauth-provider');
+                    if (gatewayAuthProviderEl) gatewayAuthProviderEl.value = authProvider;
+                    this._applyGatewayAuthModeUI(authMode);
                     if (apiKey) document.getElementById('gw-llm-api-key').value = '';
                     this.loadChannelConfig(); // refresh badge + extended fields
                     // Propagate api_key change to the Agent panel without a new server fetch
+                    const agentAuthModeEl = document.getElementById('agent-auth-mode');
+                    if (agentAuthModeEl) {
+                        agentAuthModeEl.value = authMode;
+                        if (typeof this._applyAgentAuthModeUI === 'function') {
+                            this._applyAgentAuthModeUI(authMode);
+                        }
+                    }
+                    const agentAuthProviderEl = document.getElementById('agent-oauth-provider');
+                    if (agentAuthProviderEl) {
+                        agentAuthProviderEl.value = authProvider;
+                    }
                     if (apiKey) {
                         const agentKeyEl = document.getElementById('agent-api-key');
                         if (agentKeyEl) {
@@ -2023,7 +2183,12 @@ Object.assign(SingleCellAnalysis.prototype, {
             fetch('/api/gateway/channels/llm/test', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: apiKey, endpoint: llmVals.endpoint || undefined }),
+                body: JSON.stringify({
+                    api_key: apiKey,
+                    endpoint: llmVals.endpoint || undefined,
+                    auth_mode: authMode,
+                    auth_provider: authProvider,
+                }),
             })
             .then(r => r.json())
             .then(data => {

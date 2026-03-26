@@ -695,12 +695,66 @@ try:
         window's per-request config loading behaviour."""
 
         def _build_agent(self, kernel_root):
+            from omicverse.jarvis.session import _load_agent_factory
+            from services.agent_service import (
+                _should_use_openai_oauth,
+                _resolve_chatgpt_backend_auth,
+            )
+
             with app.app_context():
                 cfg = _read_config()
                 self._api_key = _read_api_key() or ""
             self._model = cfg.get("model") or "gpt-4o"
             self._endpoint = cfg.get("endpoint") or ""
-            return super()._build_agent(kernel_root)
+            self._auth_mode = cfg.get("auth_mode") or ""
+            self._auth_provider = str(cfg.get("auth_provider") or "codex").strip().lower() or "codex"
+
+            kwargs: dict = dict(
+                model=self._model,
+                use_notebook_execution=self._shared_kernel_executor is None,
+                strict_kernel_validation=False,
+                verbose=self._verbose,
+                max_prompts_per_session=self._max_prompts,
+                notebook_storage_dir=str(kernel_root / "sessions"),
+                context_storage_dir=str(kernel_root / "context"),
+                enable_filesystem_context=True,
+            )
+
+            # Apply OAuth redirect — same logic as get_agent_instance() so that
+            # channel agents (Telegram, Discord, …) also use the Codex backend.
+            if self._auth_mode == "openai_oauth" and self._auth_provider == "gemini_cli":
+                kwargs["auth_mode"] = "gemini_cli_oauth"
+                kwargs["auth_provider"] = self._auth_provider
+                kwargs["auth_file"] = str(Path.home() / ".ovjarvis" / "auth.json")
+
+            if _should_use_openai_oauth(self._endpoint, self._api_key, self._auth_mode, self._auth_provider):
+                try:
+                    from pathlib import Path as _Path
+                    from omicverse.jarvis.openai_oauth import OPENAI_CODEX_BASE_URL
+                    _auth_file = _Path.home() / ".ovjarvis" / "auth.json"
+                    _api_key, _account_id = _resolve_chatgpt_backend_auth(self._api_key)
+                    if _account_id:
+                        os.environ["CHATGPT_ACCOUNT_ID"] = _account_id
+                    kwargs["api_key"] = _api_key
+                    kwargs["endpoint"] = OPENAI_CODEX_BASE_URL if (
+                        not self._endpoint or "chatgpt.com" not in self._endpoint
+                    ) else self._endpoint
+                    kwargs["auth_mode"] = "openai_oauth"
+                    kwargs["auth_provider"] = self._auth_provider
+                    kwargs["auth_file"] = str(_auth_file)
+                except Exception:
+                    if self._api_key:
+                        kwargs["api_key"] = self._api_key
+                    if self._endpoint:
+                        kwargs["endpoint"] = self._endpoint
+            elif not kwargs.get("auth_mode"):
+                if self._api_key:
+                    kwargs["api_key"] = self._api_key
+                if self._endpoint:
+                    kwargs["endpoint"] = self._endpoint
+
+            agent_factory = _load_agent_factory()
+            return agent_factory(**kwargs)
 
     _web_bridge = _WorkspaceBridge(session_manager)
     _jarvis_sm = _LiveConfigJarvisSM(

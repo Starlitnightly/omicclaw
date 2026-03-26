@@ -259,7 +259,13 @@ Object.assign(SingleCellAnalysis.prototype, {
                 'common.failed': 'Failed',
                 'common.error': 'Error',
                 'common.unknownError': 'Unknown error',
+                'common.authModeApiKey': 'API Key',
+                'common.authModeOAuth': 'OAuth',
+                'common.oauthProviderCodex': 'Codex',
+                'common.oauthProviderGeminiCli': 'Gemini CLI',
                 'agent.configTitle': 'Agent Configuration',
+                'agent.authMode': 'Auth Mode',
+                'agent.oauthProvider': 'OAuth Provider',
                 'agent.apiBase': 'API Base URL',
                 'agent.apiKey': 'API Key',
                 'agent.model': 'Model',
@@ -272,6 +278,7 @@ Object.assign(SingleCellAnalysis.prototype, {
                 'agent.systemPromptPlaceholder': 'You are a single-cell analysis assistant...',
                 'agent.save': 'Save',
                 'agent.reset': 'Reset',
+                'agent.testConnection': 'Test',
                 'agent.localNotice': 'Saved in browser storage',
                 'agent.title': 'Single-cell Agent',
                 'agent.configButton': 'Configure',
@@ -661,6 +668,8 @@ Object.assign(SingleCellAnalysis.prototype, {
                 , 'gateway.loadingConfigError': 'Could not load config. Ensure the gateway backend is running.'
                 , 'gateway.llmModel': 'LLM Model'
                 , 'gateway.model': 'Model'
+                , 'gateway.authMode': 'Auth Mode'
+                , 'gateway.oauthProvider': 'OAuth Provider'
                 , 'gateway.apiKey': 'API Key'
                 , 'gateway.apiEndpoint': 'API Endpoint'
                 , 'gateway.optional': 'optional'
@@ -752,12 +761,14 @@ Object.assign(SingleCellAnalysis.prototype, {
                 , 'gateway.maxTokens': 'Max Tokens'
                 , 'gateway.timeout': 'Timeout (s)'
                 , 'gateway.systemPrompt': 'System Prompt'
-                , 'gateway.codexLogin': 'Connect with Codex'
-                , 'gateway.codexImport': 'Import Codex Auth'
-                , 'gateway.codexLinked': 'Codex linked'
-                , 'gateway.codexNotLinked': 'not linked'
-                , 'gateway.codexExpired': 'token expired'
-                , 'gateway.codexPending': 'waiting for browser...'
+                , 'gateway.oauthConnectWith': 'Connect with {provider}'
+                , 'gateway.oauthImportFrom': 'Import {provider} Auth'
+                , 'gateway.oauthLinked': '{provider} linked'
+                , 'gateway.oauthNotLinked': 'not linked'
+                , 'gateway.oauthExpired': 'token expired'
+                , 'gateway.oauthPending': 'waiting for browser...'
+                , 'gateway.geminiCliWarning': 'This is an unofficial integration; some users report account restrictions. Use at your own risk.'
+                , 'gateway.oauthBrowserUnavailable': 'Browser OAuth is not available for {provider}. Import existing local auth instead.'
                 , 'common.test': 'Test'
                 , 'agent.noApiKeyTitle': 'API Key Required'
                 , 'agent.noApiKeyMsg': 'Please configure an API key in the Agent settings before sending a message.'
@@ -1020,7 +1031,13 @@ Object.assign(SingleCellAnalysis.prototype, {
                 'common.failed': '失败',
                 'common.error': '错误',
                 'common.unknownError': '未知错误',
+                'common.authModeApiKey': 'API Key',
+                'common.authModeOAuth': 'OAuth',
+                'common.oauthProviderCodex': 'Codex',
+                'common.oauthProviderGeminiCli': 'Gemini CLI',
                 'agent.configTitle': 'Agent 配置',
+                'agent.authMode': '认证方式',
+                'agent.oauthProvider': 'OAuth 提供方',
                 'agent.apiBase': 'API Base URL',
                 'agent.apiKey': 'API Key',
                 'agent.model': '模型',
@@ -1033,6 +1050,7 @@ Object.assign(SingleCellAnalysis.prototype, {
                 'agent.systemPromptPlaceholder': '你是一个单细胞分析助手...',
                 'agent.save': '保存',
                 'agent.reset': '重置',
+                'agent.testConnection': '测试连接',
                 'agent.localNotice': '配置保存在浏览器本地',
                 'agent.title': '单细胞分析 Agent',
                 'agent.configButton': '配置模型',
@@ -1422,6 +1440,8 @@ Object.assign(SingleCellAnalysis.prototype, {
                 , 'gateway.loadingConfigError': '无法加载配置，请确认 gateway 后端正在运行。'
                 , 'gateway.llmModel': 'LLM 模型'
                 , 'gateway.model': '模型'
+                , 'gateway.authMode': '认证方式'
+                , 'gateway.oauthProvider': 'OAuth 提供方'
                 , 'gateway.apiKey': 'API 密钥'
                 , 'gateway.apiEndpoint': 'API 地址'
                 , 'gateway.optional': '可选'
@@ -1513,12 +1533,14 @@ Object.assign(SingleCellAnalysis.prototype, {
                 , 'gateway.maxTokens': '最大 Token 数'
                 , 'gateway.timeout': '超时 (秒)'
                 , 'gateway.systemPrompt': '系统提示词'
-                , 'gateway.codexLogin': '使用 Codex 登录'
-                , 'gateway.codexImport': '导入 Codex 认证'
-                , 'gateway.codexLinked': 'Codex 已连接'
-                , 'gateway.codexNotLinked': '未连接'
-                , 'gateway.codexExpired': 'Token 已过期'
-                , 'gateway.codexPending': '等待浏览器授权...'
+                , 'gateway.oauthConnectWith': '连接 {provider}'
+                , 'gateway.oauthImportFrom': '导入 {provider} 认证'
+                , 'gateway.oauthLinked': '{provider} 已连接'
+                , 'gateway.oauthNotLinked': '未连接'
+                , 'gateway.oauthExpired': 'Token 已过期'
+                , 'gateway.oauthPending': '等待浏览器授权...'
+                , 'gateway.geminiCliWarning': 'This is an unofficial integration; some users report account restrictions. Use at your own risk.'
+                , 'gateway.oauthBrowserUnavailable': '{provider} 暂不支持浏览器 OAuth，请改为导入本地认证。'
                 , 'common.test': '测试'
                 , 'agent.noApiKeyTitle': '需要 API Key'
                 , 'agent.noApiKeyMsg': '发送消息前，请在 Agent 配置中填写 API Key。'
