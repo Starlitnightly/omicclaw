@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omicclaw"
-version = "2.0.9rc1"
+version = "2.0.10rc1"
 description = "OmicClaw gateway-first workspace for web UI, channels, notebooks, and agent workflows"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -33,7 +33,7 @@ dependencies = [
   "werkzeug",
   "ipykernel",
   "nbformat",
-  "omicverse>=2.0.8",
+  "omicverse>=2.0.9",
   "omicverse-skills",
   "scanpy>=1.9",
   "numpy>=1.23",
