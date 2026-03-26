@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "default_auth_mode": "official",
+  "default_provider": "openai",
+  "default_oauth_provider": "codex",
+  "auth_modes": [
+    {
+      "id": "official",
+      "label": "Official Endpoint"
+    },
+    {
+      "id": "custom",
+      "label": "Custom Endpoint"
+    },
+    {
+      "id": "oauth",
+      "label": "OAuth"
+    }
+  ],
+  "providers": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "api_base": "https://api.openai.com/v1",
+      "website": "https://api.openai.com/v1",
+      "default_model": "gpt-5",
+      "models": [
+        { "id": "gpt-5", "label": "GPT-5" },
+        { "id": "gpt-5.3-codex", "label": "GPT-5.3 Codex" },
+        { "id": "gpt-5.2", "label": "GPT-5.2" },
+        { "id": "gpt-5-mini", "label": "GPT-5 Mini" },
+        { "id": "gpt-4o", "label": "GPT-4o" },
+        { "id": "gpt-4o-mini", "label": "GPT-4o Mini" },
+        { "id": "o3", "label": "o3" },
+        { "id": "o4-mini", "label": "o4-mini" }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "label": "Anthropic",
+      "api_base": "https://api.anthropic.com",
+      "website": "https://api.anthropic.com",
+      "default_model": "anthropic/claude-sonnet-4-6-20260201",
+      "models": [
+        { "id": "anthropic/claude-sonnet-4-6-20260201", "label": "Claude Sonnet 4.6" },
+        { "id": "anthropic/claude-opus-4-6-20260201", "label": "Claude Opus 4.6" },
+        { "id": "anthropic/claude-haiku-4-5-20251001", "label": "Claude Haiku 4.5" },
+        { "id": "anthropic/claude-sonnet-4-20250514", "label": "Claude Sonnet 4" },
+        { "id": "anthropic/claude-3-7-sonnet-20250219", "label": "Claude Sonnet 3.7" }
+      ]
+    },
+    {
+      "id": "google",
+      "label": "Google Gemini",
+      "api_base": "https://generativelanguage.googleapis.com/v1beta",
+      "website": "https://generativelanguage.googleapis.com/v1beta",
+      "default_model": "gemini-2.5-flash",
+      "models": [
+        { "id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash" },
+        { "id": "gemini-2.5-pro", "label": "Gemini 2.5 Pro" },
+        { "id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash" },
+        { "id": "gemini-2.0-pro", "label": "Gemini 2.0 Pro" }
+      ]
+    },
+    {
+      "id": "deepseek",
+      "label": "DeepSeek",
+      "api_base": "https://api.deepseek.com/v1",
+      "website": "https://api.deepseek.com/v1",
+      "default_model": "deepseek/deepseek-chat",
+      "models": [
+        { "id": "deepseek/deepseek-chat", "label": "DeepSeek Chat" },
+        { "id": "deepseek/deepseek-reasoner", "label": "DeepSeek Reasoner" }
+      ]
+    },
+    {
+      "id": "dashscope",
+      "label": "Qwen (DashScope)",
+      "api_base": "https://dashscope.aliyuncs.com/api/v1",
+      "website": "https://dashscope.aliyuncs.com/api/v1",
+      "default_model": "qwen-plus",
+      "models": [
+        { "id": "qwen-plus", "label": "Qwen Plus" },
+        { "id": "qwen-max", "label": "Qwen Max" },
+        { "id": "qwen-max-latest", "label": "Qwen Max Latest" },
+        { "id": "qwen-turbo", "label": "Qwen Turbo" },
+        { "id": "qwq-plus", "label": "QwQ Plus" }
+      ]
+    },
+    {
+      "id": "moonshot",
+      "label": "Moonshot",
+      "api_base": "https://api.moonshot.cn/v1",
+      "website": "https://api.moonshot.cn/v1",
+      "default_model": "moonshot/kimi-k2.5",
+      "models": [
+        { "id": "moonshot/kimi-k2.5", "label": "Kimi K2.5" },
+        { "id": "moonshot/kimi-latest", "label": "Kimi Latest" },
+        { "id": "moonshot/moonshot-v1-32k", "label": "Moonshot V1 32K" },
+        { "id": "moonshot/moonshot-v1-128k", "label": "Moonshot V1 128K" }
+      ]
+    },
+    {
+      "id": "minimax",
+      "label": "MiniMax",
+      "api_base": "https://api.minimax.chat/v1",
+      "website": "https://api.minimax.chat/v1",
+      "default_model": "minimax/MiniMax-M2.1",
+      "models": [
+        { "id": "minimax/MiniMax-M2.1", "label": "MiniMax M2.1" },
+        { "id": "minimax/MiniMax-M2.1-lightning", "label": "MiniMax M2.1 Lightning" },
+        { "id": "minimax/MiniMax-VL-01", "label": "MiniMax VL 01" }
+      ]
+    },
+    {
+      "id": "together",
+      "label": "Together AI",
+      "api_base": "https://api.together.xyz/v1",
+      "website": "https://api.together.xyz/v1",
+      "default_model": "together/deepseek-ai/DeepSeek-V3.1",
+      "models": [
+        { "id": "together/deepseek-ai/DeepSeek-V3.1", "label": "DeepSeek V3.1 (Together)" },
+        { "id": "together/deepseek-ai/DeepSeek-R1", "label": "DeepSeek R1 (Together)" },
+        { "id": "together/moonshotai/Kimi-K2.5", "label": "Kimi K2.5 (Together)" },
+        { "id": "together/zai-org/GLM-4.7", "label": "GLM 4.7 (Together)" }
+      ]
+    },
+    {
+      "id": "xai",
+      "label": "xAI Grok",
+      "api_base": "https://api.x.ai/v1",
+      "website": "https://api.x.ai/v1",
+      "default_model": "xai/grok-4",
+      "models": [
+        { "id": "xai/grok-4", "label": "Grok 4" },
+        { "id": "xai/grok-4-fast-reasoning", "label": "Grok 4 Fast Reasoning" },
+        { "id": "xai/grok-4-fast-non-reasoning", "label": "Grok 4 Fast" },
+        { "id": "xai/grok-2", "label": "Grok 2" }
+      ]
+    },
+    {
+      "id": "qianfan",
+      "label": "Qianfan",
+      "api_base": "https://qianfan.baidubce.com/v2",
+      "website": "https://qianfan.baidubce.com/v2",
+      "default_model": "qianfan/ernie-5.0-thinking-preview",
+      "models": [
+        { "id": "qianfan/ernie-5.0-thinking-preview", "label": "ERNIE 5.0 Thinking Preview" },
+        { "id": "qianfan/deepseek-v3.2", "label": "DeepSeek V3.2 (Qianfan)" }
+      ]
+    }
+  ],
+  "oauth_providers": [
+    {
+      "id": "codex",
+      "label": "Codex",
+      "provider_id": "openai",
+      "api_base": "https://chatgpt.com/backend-api",
+      "website": "https://chatgpt.com/backend-api",
+      "default_model": "gpt-5.3-codex",
+      "supports_browser_login": true,
+      "supports_import": true
+    },
+    {
+      "id": "gemini_cli",
+      "label": "Gemini CLI",
+      "provider_id": "google",
+      "api_base": "https://cloudcode-pa.googleapis.com",
+      "website": "https://cloudcode-pa.googleapis.com",
+      "default_model": "gemini-2.5-flash",
+      "supports_browser_login": true,
+      "supports_import": true,
+      "warning": "This is an unofficial integration; some users report account restrictions. Use at your own risk."
+    }
+  ]
+}

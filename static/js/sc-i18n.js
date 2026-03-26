@@ -260,11 +260,14 @@ Object.assign(SingleCellAnalysis.prototype, {
                 'common.error': 'Error',
                 'common.unknownError': 'Unknown error',
                 'common.authModeApiKey': 'API Key',
+                'common.authModeOfficial': 'Official Endpoint',
+                'common.authModeCustom': 'Custom Endpoint',
                 'common.authModeOAuth': 'OAuth',
                 'common.oauthProviderCodex': 'Codex',
                 'common.oauthProviderGeminiCli': 'Gemini CLI',
                 'agent.configTitle': 'Agent Configuration',
                 'agent.authMode': 'Auth Mode',
+                'agent.provider': 'Provider',
                 'agent.oauthProvider': 'OAuth Provider',
                 'agent.apiBase': 'API Base URL',
                 'agent.apiKey': 'API Key',
@@ -669,6 +672,7 @@ Object.assign(SingleCellAnalysis.prototype, {
                 , 'gateway.llmModel': 'LLM Model'
                 , 'gateway.model': 'Model'
                 , 'gateway.authMode': 'Auth Mode'
+                , 'gateway.provider': 'Provider'
                 , 'gateway.oauthProvider': 'OAuth Provider'
                 , 'gateway.apiKey': 'API Key'
                 , 'gateway.apiEndpoint': 'API Endpoint'
@@ -1032,11 +1036,14 @@ Object.assign(SingleCellAnalysis.prototype, {
                 'common.error': '错误',
                 'common.unknownError': '未知错误',
                 'common.authModeApiKey': 'API Key',
+                'common.authModeOfficial': '官方端点',
+                'common.authModeCustom': '自定义端点',
                 'common.authModeOAuth': 'OAuth',
                 'common.oauthProviderCodex': 'Codex',
                 'common.oauthProviderGeminiCli': 'Gemini CLI',
                 'agent.configTitle': 'Agent 配置',
                 'agent.authMode': '认证方式',
+                'agent.provider': '供应商',
                 'agent.oauthProvider': 'OAuth 提供方',
                 'agent.apiBase': 'API Base URL',
                 'agent.apiKey': 'API Key',
@@ -1441,6 +1448,7 @@ Object.assign(SingleCellAnalysis.prototype, {
                 , 'gateway.llmModel': 'LLM 模型'
                 , 'gateway.model': '模型'
                 , 'gateway.authMode': '认证方式'
+                , 'gateway.provider': '供应商'
                 , 'gateway.oauthProvider': 'OAuth 提供方'
                 , 'gateway.apiKey': 'API 密钥'
                 , 'gateway.apiEndpoint': 'API 地址'

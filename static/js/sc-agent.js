@@ -47,7 +47,7 @@ Object.assign(SingleCellAnalysis.prototype, {
 
     /** Whether gateway has a saved Codex OAuth session */
     _agentCodexLinked: false,
-    _agentAuthMode: 'openai_api_key',
+    _agentAuthMode: 'official',
 
     /** DOM element for the pending assistant bubble */
     _agentPendingBubble: null,
@@ -721,6 +721,7 @@ Object.assign(SingleCellAnalysis.prototype, {
     getAgentConfigFields() {
         const fields = {
             authMode: document.getElementById('agent-auth-mode'),
+            provider: document.getElementById('agent-provider'),
             authProvider: document.getElementById('agent-oauth-provider'),
             apiBase: document.getElementById('agent-api-base'),
             apiKey: document.getElementById('agent-api-key'),
@@ -736,8 +737,9 @@ Object.assign(SingleCellAnalysis.prototype, {
     },
 
     _agentOAuthProviderMeta(provider) {
-        const normalized = this._normalizeAgentAuthProvider(provider);
-        const label = normalized === 'gemini_cli' ? this.t('common.oauthProviderGeminiCli') : this.t('common.oauthProviderCodex');
+        const meta = this._getOAuthProviderMeta(provider);
+        const normalized = meta.id;
+        const label = meta.label || normalized;
         return {
             provider: normalized,
             label,
@@ -745,8 +747,11 @@ Object.assign(SingleCellAnalysis.prototype, {
             startEndpoint: `/api/gateway/channels/oauth/${normalized}/start`,
             statusEndpoint: `/api/gateway/channels/oauth/${normalized}/status`,
             importEndpoint: `/api/gateway/channels/oauth/${normalized}/import`,
-            supportsBrowserLogin: normalized === 'codex' || normalized === 'gemini_cli',
-            supportsImport: true,
+            supportsBrowserLogin: meta.supports_browser_login !== false,
+            supportsImport: meta.supports_import !== false,
+            providerId: meta.provider_id || 'openai',
+            apiBase: meta.api_base || '',
+            defaultModel: meta.default_model || '',
         };
     },
 
@@ -755,10 +760,9 @@ Object.assign(SingleCellAnalysis.prototype, {
         if (!fields) return;
         const normalized = this._deriveAgentAuthMode({
             requestedMode: mode || fields.authMode.value,
-            apiKey: fields.apiKey.value.trim(),
-            apiBase: fields.apiBase.value.trim(),
         });
-        const isOAuth = normalized === 'openai_oauth';
+        const isOAuth = normalized === 'oauth';
+        const isCustom = normalized === 'custom';
         const setVisible = (id, visible) => {
             const el = document.getElementById(id);
             if (el) el.style.display = visible ? '' : 'none';
@@ -766,13 +770,26 @@ Object.assign(SingleCellAnalysis.prototype, {
 
         this._agentAuthMode = normalized;
         fields.authMode.value = normalized;
-        const provider = this._normalizeAgentAuthProvider((fields.authProvider && fields.authProvider.value) || 'codex');
-        const meta = this._agentOAuthProviderMeta(provider);
-        const isGeminiCli = isOAuth && provider === 'gemini_cli';
-        if (fields.authProvider) fields.authProvider.value = provider;
-        fields.apiBase.disabled = isOAuth;
+        const provider = this._normalizeApiProvider((fields.provider && fields.provider.value) || '', fields.model.value || '');
+        const authProvider = this._normalizeAgentAuthProvider((fields.authProvider && fields.authProvider.value) || 'codex');
+        const meta = this._agentOAuthProviderMeta(authProvider);
+        const isGeminiCli = isOAuth && authProvider === 'gemini_cli';
+        if (fields.provider) {
+            fields.provider.value = provider;
+            fields.provider.disabled = isOAuth;
+        }
+        if (fields.authProvider) fields.authProvider.value = authProvider;
+        fields.apiBase.disabled = !isCustom;
         fields.apiKey.disabled = isOAuth;
         if (fields.authProvider) fields.authProvider.disabled = !isOAuth;
+        this._syncModelOptions(fields.model, normalized, provider, authProvider, fields.model.value || '');
+        if (isOAuth) {
+            fields.apiBase.value = meta.apiBase || fields.apiBase.value;
+        } else if (!isCustom) {
+            fields.apiBase.value = this._getApiProviderMeta(provider).api_base || fields.apiBase.value;
+        } else if (!fields.apiBase.value) {
+            fields.apiBase.value = this._getApiProviderMeta(provider).api_base || '';
+        }
 
         const rememberKeyEl = document.getElementById('agent-remember-key');
         const connectBtn = document.getElementById('agent-oauth-connect-btn');
@@ -789,8 +806,9 @@ Object.assign(SingleCellAnalysis.prototype, {
             importLabel.textContent = this._formatTemplate(this.t('gateway.oauthImportFrom'), { provider: meta.label });
         }
 
+        setVisible('agent-provider-group', !isOAuth);
         setVisible('agent-oauth-provider-group', isOAuth);
-        setVisible('agent-api-base-group', !isOAuth);
+        setVisible('agent-api-base-group', isCustom);
         setVisible('agent-api-key-group', !isOAuth);
         setVisible('agent-key-notice', !isOAuth);
         setVisible('agent-oauth-group', isOAuth);
@@ -802,11 +820,16 @@ Object.assign(SingleCellAnalysis.prototype, {
         if (!fields) return;
         fields.authMode.onchange = () => {
             this._applyAgentAuthModeUI(fields.authMode.value);
-            if (fields.authMode.value === 'openai_oauth') {
+            if (fields.authMode.value === 'oauth') {
                 this._refreshAgentOAuthStatus(undefined, fields.authProvider.value || 'codex');
             }
         };
+        fields.provider.onchange = () => {
+            this._syncModelOptions(fields.model, fields.authMode.value, fields.provider.value, fields.authProvider.value, fields.model.value || '');
+            this._applyAgentAuthModeUI(fields.authMode.value);
+        };
         fields.authProvider.onchange = () => {
+            this._syncModelOptions(fields.model, fields.authMode.value, fields.provider.value, fields.authProvider.value, fields.model.value || '');
             this._applyAgentAuthModeUI(fields.authMode.value);
             this._refreshAgentOAuthStatus(undefined, fields.authProvider.value || 'codex');
         };
@@ -818,17 +841,20 @@ Object.assign(SingleCellAnalysis.prototype, {
         } catch (e) {
             stored = null;
         }
-        this._agentAuthMode = (stored && stored.authMode) || this._agentAuthMode || 'openai_api_key';
-        fields.authMode.value = this._agentAuthMode || 'openai_api_key';
-        fields.authProvider.value = this._normalizeAgentAuthProvider((stored && stored.authProvider) || 'codex');
+        this._setLlmCatalog(this._getLlmCatalog());
+        this._agentAuthMode = this._normalizeLlmAuthMode((stored && stored.authMode) || this._agentAuthMode || 'official');
+        fields.authMode.value = this._agentAuthMode || 'official';
+        this._syncSelectOptions(fields.provider, (this._getLlmCatalog().providers || []).map(item => ({ id: item.id, label: item.label })), this._normalizeApiProvider((stored && stored.provider) || 'openai', (stored && stored.model) || ''));
+        this._syncSelectOptions(fields.authProvider, (this._getLlmCatalog().oauth_providers || []).map(item => ({ id: item.id, label: item.label })), this._normalizeAgentAuthProvider((stored && stored.authProvider) || 'codex'));
         if (!stored) {
             fields.apiBase.value = fields.apiBase.value || 'https://api.openai.com/v1';
-            fields.model.value = fields.model.value || 'gpt-5';
+            this._syncModelOptions(fields.model, fields.authMode.value, fields.provider.value, fields.authProvider.value, 'gpt-5');
         } else {
-            fields.authMode.value = stored.authMode || fields.authMode.value || 'openai_api_key';
+            fields.authMode.value = this._normalizeLlmAuthMode(stored.authMode || fields.authMode.value || 'official');
+            fields.provider.value = this._normalizeApiProvider(stored.provider || fields.provider.value || 'openai', stored.model || '');
             fields.authProvider.value = this._normalizeAgentAuthProvider(stored.authProvider || fields.authProvider.value || 'codex');
             fields.apiBase.value = stored.apiBase || fields.apiBase.value || 'https://api.openai.com/v1';
-            fields.model.value = stored.model || fields.model.value || 'gpt-5';
+            this._syncModelOptions(fields.model, fields.authMode.value, fields.provider.value, fields.authProvider.value, stored.model || fields.model.value || 'gpt-5');
             fields.temperature.value = stored.temperature ?? fields.temperature.value;
             fields.topP.value = stored.topP ?? fields.topP.value;
             fields.maxTokens.value = stored.maxTokens ?? fields.maxTokens.value;
@@ -851,9 +877,11 @@ Object.assign(SingleCellAnalysis.prototype, {
             .catch(() => null)
             .then(data => {
                 if (!data) return;
+                this._setLlmCatalog(data.llm_catalog);
                 this._agentCodexLinked = !!data.codex_linked;
-                this._agentAuthMode = data.auth_mode || this._agentAuthMode || (data.codex_linked ? 'openai_oauth' : 'openai_api_key');
-                fields.authMode.value = this._agentAuthMode || 'openai_api_key';
+                this._agentAuthMode = this._normalizeLlmAuthMode(data.auth_mode || this._agentAuthMode || (data.codex_linked ? 'oauth' : 'official'));
+                fields.authMode.value = this._agentAuthMode || 'official';
+                this._syncSelectOptions(fields.provider, (this._getLlmCatalog().providers || []).map(item => ({ id: item.id, label: item.label })), this._normalizeApiProvider(data.provider || fields.provider.value || 'openai', data.model || fields.model.value || ''));
                 fields.authProvider.value = this._normalizeAgentAuthProvider(data.auth_provider || fields.authProvider.value || 'codex');
                 // api_key: gateway always wins (shared key)
                 if (data.api_key) {
@@ -863,10 +891,7 @@ Object.assign(SingleCellAnalysis.prototype, {
                         localStorage.setItem('omicverse.agentApiKey', data.api_key);
                     }
                 }
-                // model / endpoint: use gateway value when local has none
-                if (data.model && (!fields.model.value || fields.model.value === 'gpt-5')) {
-                    fields.model.value = data.model;
-                }
+                this._syncModelOptions(fields.model, fields.authMode.value, fields.provider.value, fields.authProvider.value, data.model || fields.model.value || '');
                 if (data.endpoint && (!fields.apiBase.value || fields.apiBase.value === 'https://api.openai.com/v1')) {
                     fields.apiBase.value = data.endpoint;
                 }
@@ -891,9 +916,8 @@ Object.assign(SingleCellAnalysis.prototype, {
         const rememberKey = this._isRememberKeyEnabled();
         const authMode = this._deriveAgentAuthMode({
             requestedMode: fields.authMode.value,
-            apiKey,
-            apiBase: fields.apiBase.value.trim(),
         });
+        const provider = this._normalizeApiProvider(fields.provider.value || 'openai', fields.model.value || '');
         const authProvider = this._normalizeAgentAuthProvider(fields.authProvider.value || 'codex');
         this._agentAuthMode = authMode;
         this._applyAgentAuthModeUI(authMode);
@@ -901,7 +925,8 @@ Object.assign(SingleCellAnalysis.prototype, {
         // Save non-secret config to localStorage (never includes API key)
         const payload = {
             apiBase: fields.apiBase.value.trim(),
-            model: fields.model.value.trim(),
+            provider,
+            model: fields.model.value,
             temperature: fields.temperature.value,
             topP: fields.topP.value,
             maxTokens: fields.maxTokens.value,
@@ -932,6 +957,7 @@ Object.assign(SingleCellAnalysis.prototype, {
             body: JSON.stringify({
                 api_key: apiKey || undefined,
                 model: payload.model || undefined,
+                provider: payload.provider,
                 endpoint: payload.apiBase || undefined,
                 temperature: isNaN(temp) ? undefined : temp,
                 top_p: isNaN(topP) ? undefined : topP,
@@ -955,12 +981,13 @@ Object.assign(SingleCellAnalysis.prototype, {
         localStorage.removeItem('omicverse.agentConfig');
         localStorage.removeItem('omicverse.agentApiKey');
         sessionStorage.removeItem('omicverse.agentApiKey');
-        this._agentAuthMode = this._agentCodexLinked ? 'openai_oauth' : 'openai_api_key';
+        this._agentAuthMode = this._agentCodexLinked ? 'oauth' : 'official';
+        fields.provider.value = this._normalizeApiProvider('openai');
         fields.authProvider.value = 'codex';
         this._applyAgentAuthModeUI(this._agentAuthMode);
         fields.apiBase.value = 'https://api.openai.com/v1';
         fields.apiKey.value = '';
-        fields.model.value = 'gpt-5';
+        this._syncModelOptions(fields.model, this._agentAuthMode, fields.provider.value, fields.authProvider.value, 'gpt-5');
         fields.temperature.value = 0.3;
         fields.topP.value = 1;
         fields.maxTokens.value = 2048;
@@ -980,7 +1007,8 @@ Object.assign(SingleCellAnalysis.prototype, {
         const cfg = this.getAgentConfig();
         const apiKey = cfg.apiKey || '';
         const endpoint = cfg.apiBase || '';
-        const authMode = cfg.authMode || this._agentAuthMode || 'openai_api_key';
+        const authMode = cfg.authMode || this._agentAuthMode || 'official';
+        const provider = this._normalizeApiProvider(cfg.provider || 'openai', cfg.model || '');
         const authProvider = this._normalizeAgentAuthProvider(cfg.authProvider || 'codex');
         const resultEl = document.getElementById('agent-test-result');
         if (resultEl) {
@@ -993,6 +1021,8 @@ Object.assign(SingleCellAnalysis.prototype, {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 api_key: apiKey || undefined,
+                model: cfg.model || undefined,
+                provider: provider,
                 endpoint: endpoint || undefined,
                 auth_mode: authMode,
                 auth_provider: authProvider,
@@ -1041,8 +1071,8 @@ Object.assign(SingleCellAnalysis.prototype, {
                     this._showErrorModal(this._formatTemplate(this.t('gateway.oauthImportFrom'), { provider: meta.label }), data.error || this.t('common.unknownError'));
                     return;
                 }
-                this._agentAuthMode = 'openai_oauth';
-                this._applyAgentAuthModeUI('openai_oauth');
+                this._agentAuthMode = 'oauth';
+                this._applyAgentAuthModeUI('oauth');
                 this.loadAgentConfig();
                 this._refreshAgentOAuthStatus(undefined, meta.provider);
             })
@@ -1060,8 +1090,8 @@ Object.assign(SingleCellAnalysis.prototype, {
                 .then(data => {
                     if (data.status === 'success') {
                         clearInterval(this._agentCodexOAuthPoller); this._agentCodexOAuthPoller = null;
-                        this._agentAuthMode = 'openai_oauth';
-                        this._applyAgentAuthModeUI('openai_oauth');
+                        this._agentAuthMode = 'oauth';
+                        this._applyAgentAuthModeUI('oauth');
                         this.loadAgentConfig();
                         this._refreshAgentOAuthStatus(data, meta.provider);
                     } else if (data.status === 'error') {
@@ -1125,7 +1155,11 @@ Object.assign(SingleCellAnalysis.prototype, {
         const apiKey = localStorage.getItem('omicverse.agentApiKey')
             || sessionStorage.getItem('omicverse.agentApiKey')
             || '';
-        const authMode = this._agentAuthMode || (stored && stored.authMode) || (this._agentCodexLinked ? 'openai_oauth' : 'openai_api_key');
+        const authMode = this._agentAuthMode || (stored && stored.authMode) || (this._agentCodexLinked ? 'oauth' : 'official');
+        const provider = this._normalizeApiProvider(
+            (stored && stored.provider) || ((this.getAgentConfigFields() || {}).provider || {}).value || 'openai',
+            (stored && stored.model) || ''
+        );
         const authProvider = this._normalizeAgentAuthProvider(
             (stored && stored.authProvider) || ((this.getAgentConfigFields() || {}).authProvider || {}).value || 'codex'
         );
@@ -1133,6 +1167,7 @@ Object.assign(SingleCellAnalysis.prototype, {
         if (stored) {
             stored.apiKey = apiKey;
             stored.authMode = authMode;
+            stored.provider = provider;
             stored.authProvider = authProvider;
             return stored;
         }
@@ -1142,8 +1177,9 @@ Object.assign(SingleCellAnalysis.prototype, {
             apiBase: fields.apiBase.value.trim(),
             apiKey: apiKey || fields.apiKey.value.trim(),
             authMode: fields.authMode.value || authMode,
+            provider,
             authProvider: fields.authProvider.value || authProvider,
-            model: fields.model.value.trim(),
+            model: fields.model.value,
             temperature: fields.temperature.value,
             topP: fields.topP.value,
             maxTokens: fields.maxTokens.value,
@@ -1152,24 +1188,13 @@ Object.assign(SingleCellAnalysis.prototype, {
         };
     },
 
-    _deriveAgentAuthMode({ requestedMode, apiKey, apiBase } = {}) {
-        const selected = String(requestedMode || '').trim();
-        const key = String(apiKey || '').trim();
-        const endpoint = String(apiBase || '').trim();
-        if (selected === 'openai_oauth' || selected === 'openai_api_key') return selected;
-        if (endpoint.includes('chatgpt.com')) return 'openai_oauth';
-        if (key.startsWith('eyJ') && key.split('.').length >= 3) return 'openai_oauth';
-        if (key) return 'openai_api_key';
-        if (this._agentAuthMode) return this._agentAuthMode;
-        return this._agentCodexLinked ? 'openai_oauth' : 'openai_api_key';
+    _deriveAgentAuthMode({ requestedMode } = {}) {
+        if (this._agentAuthMode && !requestedMode) return this._normalizeLlmAuthMode(this._agentAuthMode);
+        return this._normalizeLlmAuthMode(requestedMode || (this._agentCodexLinked ? 'oauth' : 'official'));
     },
 
     _normalizeAgentAuthProvider(provider) {
-        const normalized = String(provider || '').trim().toLowerCase();
-        if (!normalized || normalized === 'openai' || normalized === 'openai_codex') {
-            return 'codex';
-        }
-        return normalized;
+        return this._normalizeOAuthProvider(provider);
     },
 
     // =====================================================================
@@ -1452,8 +1477,8 @@ Object.assign(SingleCellAnalysis.prototype, {
         // Validate API key before sending
         const cfg = this.getAgentConfig();
         const wantsChatgptBackend = String(cfg.apiBase || '').includes('chatgpt.com');
-        const wantsOAuth = cfg.authMode === 'openai_oauth';
-        if (!cfg.apiKey && !((wantsChatgptBackend || wantsOAuth) && this._agentCodexLinked)) {
+        const wantsOAuth = this._normalizeLlmAuthMode(cfg.authMode) === 'oauth';
+        if (!cfg.apiKey && !(wantsChatgptBackend || wantsOAuth)) {
             if (typeof this._showErrorModal === 'function') {
                 this._showErrorModal(this.t('agent.noApiKeyTitle'), this.t('agent.noApiKeyMsg'));
             } else {

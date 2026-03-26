@@ -1358,9 +1358,160 @@ Object.assign(SingleCellAnalysis.prototype, {
         );
     },
 
+    _llmCatalog: null,
+
+    _defaultLlmCatalog() {
+        return {
+            default_auth_mode: 'official',
+            default_provider: 'openai',
+            default_oauth_provider: 'codex',
+            providers: [
+                {
+                    id: 'openai',
+                    label: 'OpenAI',
+                    api_base: 'https://api.openai.com/v1',
+                    default_model: 'gpt-5',
+                    models: [{ id: 'gpt-5', label: 'GPT-5' }],
+                },
+                {
+                    id: 'google',
+                    label: 'Google Gemini',
+                    api_base: 'https://generativelanguage.googleapis.com/v1beta',
+                    default_model: 'gemini-2.5-flash',
+                    models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' }],
+                },
+            ],
+            oauth_providers: [
+                {
+                    id: 'codex',
+                    label: 'Codex',
+                    provider_id: 'openai',
+                    api_base: 'https://chatgpt.com/backend-api',
+                    default_model: 'gpt-5.3-codex',
+                    supports_browser_login: true,
+                    supports_import: true,
+                },
+                {
+                    id: 'gemini_cli',
+                    label: 'Gemini CLI',
+                    provider_id: 'google',
+                    api_base: 'https://cloudcode-pa.googleapis.com',
+                    default_model: 'gemini-2.5-flash',
+                    supports_browser_login: true,
+                    supports_import: true,
+                },
+            ],
+        };
+    },
+
+    _setLlmCatalog(catalog) {
+        if (catalog && Array.isArray(catalog.providers) && Array.isArray(catalog.oauth_providers)) {
+            this._llmCatalog = catalog;
+        } else if (!this._llmCatalog) {
+            this._llmCatalog = this._defaultLlmCatalog();
+        }
+    },
+
+    _getLlmCatalog() {
+        if (!this._llmCatalog) {
+            this._llmCatalog = this._defaultLlmCatalog();
+        }
+        return this._llmCatalog;
+    },
+
+    _normalizeLlmAuthMode(mode) {
+        const normalized = String(mode || '').trim().toLowerCase();
+        if (normalized === 'openai_oauth' || normalized === 'openai_codex') return 'oauth';
+        if (normalized === 'openai_api_key' || normalized === 'saved_api_key') return 'official';
+        if (normalized === 'official' || normalized === 'custom' || normalized === 'oauth') return normalized;
+        return this._getLlmCatalog().default_auth_mode || 'official';
+    },
+
+    _getApiProviderMeta(provider, model = '') {
+        const catalog = this._getLlmCatalog();
+        const normalized = String(provider || '').trim().toLowerCase();
+        let match = (catalog.providers || []).find(item => String(item.id || '').trim().toLowerCase() === normalized);
+        if (!match && model) {
+            match = (catalog.providers || []).find(item => (item.models || []).some(entry => entry.id === model));
+        }
+        return match || (catalog.providers || [])[0] || {
+            id: 'openai',
+            label: 'OpenAI',
+            api_base: 'https://api.openai.com/v1',
+            default_model: 'gpt-5',
+            models: [{ id: 'gpt-5', label: 'GPT-5' }],
+        };
+    },
+
+    _normalizeApiProvider(provider, model = '') {
+        return this._getApiProviderMeta(provider, model).id;
+    },
+
+    _getOAuthProviderMeta(provider) {
+        const catalog = this._getLlmCatalog();
+        const normalized = String(provider || '').trim().toLowerCase();
+        let match = (catalog.oauth_providers || []).find(item => String(item.id || '').trim().toLowerCase() === normalized);
+        if (!match && ['openai', 'openai_codex', ''].includes(normalized)) {
+            match = (catalog.oauth_providers || []).find(item => item.id === 'codex');
+        }
+        return match || (catalog.oauth_providers || [])[0] || {
+            id: 'codex',
+            label: 'Codex',
+            provider_id: 'openai',
+            api_base: 'https://chatgpt.com/backend-api',
+            default_model: 'gpt-5.3-codex',
+            supports_browser_login: true,
+            supports_import: true,
+        };
+    },
+
+    _normalizeOAuthProvider(provider) {
+        return this._getOAuthProviderMeta(provider).id;
+    },
+
+    _syncSelectOptions(selectEl, options, selectedValue) {
+        if (!selectEl) return;
+        const current = String(selectedValue || '');
+        selectEl.innerHTML = '';
+        (options || []).forEach(option => {
+            const el = document.createElement('option');
+            el.value = option.id;
+            el.textContent = option.label || option.id;
+            selectEl.appendChild(el);
+        });
+        if (options.some(option => option.id === current)) {
+            selectEl.value = current;
+        } else if (options[0]) {
+            selectEl.value = options[0].id;
+        }
+    },
+
+    _effectiveProviderForMode(authMode, provider, oauthProvider, model = '') {
+        if (this._normalizeLlmAuthMode(authMode) === 'oauth') {
+            return this._getOAuthProviderMeta(oauthProvider).provider_id || 'openai';
+        }
+        return this._normalizeApiProvider(provider, model);
+    },
+
+    _defaultModelForSelection(authMode, provider, oauthProvider) {
+        if (this._normalizeLlmAuthMode(authMode) === 'oauth') {
+            return this._getOAuthProviderMeta(oauthProvider).default_model || 'gpt-5.3-codex';
+        }
+        return this._getApiProviderMeta(provider).default_model || 'gpt-5';
+    },
+
+    _syncModelOptions(selectEl, authMode, provider, oauthProvider, selectedModel) {
+        if (!selectEl) return;
+        const effectiveProvider = this._effectiveProviderForMode(authMode, provider, oauthProvider, selectedModel);
+        const providerMeta = this._getApiProviderMeta(effectiveProvider, selectedModel);
+        const fallbackModel = this._defaultModelForSelection(authMode, providerMeta.id, oauthProvider);
+        this._syncSelectOptions(selectEl, providerMeta.models || [], selectedModel || fallbackModel);
+    },
+
     _gatewayOAuthProviderMeta(provider) {
-        const normalized = this._normalizeGatewayAuthProvider(provider);
-        const label = normalized === 'gemini_cli' ? this.t('common.oauthProviderGeminiCli') : this.t('common.oauthProviderCodex');
+        const meta = this._getOAuthProviderMeta(provider);
+        const normalized = meta.id;
+        const label = meta.label || normalized;
         return {
             provider: normalized,
             label,
@@ -1368,13 +1519,17 @@ Object.assign(SingleCellAnalysis.prototype, {
             startEndpoint: `/api/gateway/channels/oauth/${normalized}/start`,
             statusEndpoint: `/api/gateway/channels/oauth/${normalized}/status`,
             importEndpoint: `/api/gateway/channels/oauth/${normalized}/import`,
-            supportsBrowserLogin: normalized === 'codex' || normalized === 'gemini_cli',
-            supportsImport: true,
+            supportsBrowserLogin: meta.supports_browser_login !== false,
+            supportsImport: meta.supports_import !== false,
+            providerId: meta.provider_id || 'openai',
+            apiBase: meta.api_base || '',
+            defaultModel: meta.default_model || '',
+            warning: meta.warning || '',
         };
     },
 
     _selectedGatewayOAuthProvider() {
-        return this._normalizeGatewayAuthProvider((document.getElementById('gw-llm-oauth-provider') || {}).value || 'codex');
+        return this._normalizeOAuthProvider((document.getElementById('gw-llm-oauth-provider') || {}).value || 'codex');
     },
 
     // ── OAuth ──────────────────────────────────────────────────────────────
@@ -1495,28 +1650,40 @@ Object.assign(SingleCellAnalysis.prototype, {
                 this._gwConfig = data.config || {};
                 this._gwProcesses = data.processes || [];
                 this._gwSecretsSet = data.secrets_set || {};
+                this._setLlmCatalog(data.llm_catalog);
 
                 // Fill LLM fields (basic)
                 const m = document.getElementById('gw-llm-model');
                 const a = document.getElementById('gw-llm-auth-mode');
+                const providerEl = document.getElementById('gw-llm-provider');
                 const p = document.getElementById('gw-llm-oauth-provider');
                 const e = document.getElementById('gw-llm-endpoint');
                 const badge = document.getElementById('gw-llm-key-badge');
                 const pathEl = document.getElementById('gw-config-path');
-                if (m) m.value = this._gwConfig.model || '';
-                if (a) a.value = this._gwConfig.auth_mode || 'openai_api_key';
-                if (p) p.value = this._normalizeGatewayAuthProvider(this._gwConfig.auth_provider || 'codex');
+                const authMode = this._normalizeLlmAuthMode(this._gwConfig.auth_mode || 'official');
+                const provider = this._normalizeApiProvider(this._gwConfig.provider || '', this._gwConfig.model || '');
+                const authProvider = this._normalizeOAuthProvider(this._gwConfig.auth_provider || 'codex');
+                this._syncSelectOptions(providerEl, (this._getLlmCatalog().providers || []).map(item => ({ id: item.id, label: item.label })), provider);
+                this._syncSelectOptions(p, (this._getLlmCatalog().oauth_providers || []).map(item => ({ id: item.id, label: item.label })), authProvider);
+                this._syncModelOptions(m, authMode, provider, authProvider, this._gwConfig.model || '');
+                if (a) a.value = authMode;
                 if (a) a.onchange = () => {
                     this._applyGatewayAuthModeUI(a.value);
-                    if (a.value === 'openai_oauth') {
-                        this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeGatewayAuthProvider((p || {}).value || 'codex')], (p || {}).value || 'codex');
+                    this._syncModelOptions(m, a.value, (providerEl || {}).value || provider, (p || {}).value || authProvider, (m || {}).value || '');
+                    if (this._normalizeLlmAuthMode(a.value) === 'oauth') {
+                        this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeOAuthProvider((p || {}).value || 'codex')], (p || {}).value || 'codex');
                     }
                 };
-                if (p) p.onchange = () => {
-                    this._applyGatewayAuthModeUI((a || {}).value || 'openai_oauth');
-                    this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeGatewayAuthProvider(p.value)], p.value);
+                if (providerEl) providerEl.onchange = () => {
+                    this._syncModelOptions(m, (a || {}).value || authMode, providerEl.value, (p || {}).value || authProvider, (m || {}).value || '');
+                    this._applyGatewayAuthModeUI((a || {}).value || authMode);
                 };
-                if (e) e.value = this._gwConfig.endpoint || '';
+                if (p) p.onchange = () => {
+                    this._syncModelOptions(m, (a || {}).value || authMode, (providerEl || {}).value || provider, p.value, (m || {}).value || '');
+                    this._applyGatewayAuthModeUI((a || {}).value || 'oauth');
+                    this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeOAuthProvider(p.value)], p.value);
+                };
+                if (e) e.value = this._gwConfig.endpoint || this._getApiProviderMeta(provider).api_base || '';
                 if (badge) {
                     badge.textContent = data.api_key_set ? (this.t('gateway.apiKeySetPrefix') + (data.api_key_masked || '****')) : this.t('gateway.secret.notSet');
                     badge.className = 'badge ms-1 ' + (data.api_key_set ? 'bg-success' : 'bg-secondary');
@@ -1532,11 +1699,11 @@ Object.assign(SingleCellAnalysis.prototype, {
                 setVal('gw-llm-max-tokens', cfg.max_tokens ?? 2048);
                 setVal('gw-llm-timeout', cfg.timeout ?? 60);
                 setVal('gw-llm-system-prompt', cfg.system_prompt ?? '');
-                this._applyGatewayAuthModeUI((a && a.value) || cfg.auth_mode || 'openai_api_key');
+                this._applyGatewayAuthModeUI((a && a.value) || cfg.auth_mode || 'official');
 
                 // Render channel cards
                 this._renderChannelCards();
-                this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeGatewayAuthProvider((p || {}).value || 'codex')], (p || {}).value || 'codex');
+                this._refreshGatewayOAuthStatus((data.oauth_statuses || {})[this._normalizeOAuthProvider((p || {}).value || 'codex')], (p || {}).value || 'codex');
             })
             .catch(() => this._renderChannelConfigError());
     },
@@ -1994,63 +2161,67 @@ Object.assign(SingleCellAnalysis.prototype, {
         state.formValues = this._getChannelFormValues('wechat');
     },
 
-    _deriveGatewayAuthMode({ requestedMode, apiKey, endpoint } = {}) {
-        const selected = String(requestedMode || '').trim();
-        const key = String(apiKey || '').trim();
-        const base = String(endpoint || '').trim();
-        if (selected === 'openai_oauth' || selected === 'openai_api_key') return selected;
-        if (base.includes('chatgpt.com')) return 'openai_oauth';
-        if (key.startsWith('eyJ') && key.split('.').length >= 3) return 'openai_oauth';
-        if (key) return 'openai_api_key';
-        return ((this._gwConfig || {}).auth_mode) || 'openai_api_key';
+    _deriveGatewayAuthMode({ requestedMode } = {}) {
+        return this._normalizeLlmAuthMode(requestedMode || ((this._gwConfig || {}).auth_mode) || 'official');
     },
 
     _normalizeGatewayAuthProvider(provider) {
-        const normalized = String(provider || '').trim().toLowerCase();
-        if (!normalized || normalized === 'openai' || normalized === 'openai_codex') {
-            return 'codex';
-        }
-        return normalized;
+        return this._normalizeOAuthProvider(provider);
     },
 
     _applyGatewayAuthModeUI(mode) {
         const authModeEl = document.getElementById('gw-llm-auth-mode');
+        const providerEl = document.getElementById('gw-llm-provider');
         const authProviderEl = document.getElementById('gw-llm-oauth-provider');
+        const modelEl = document.getElementById('gw-llm-model');
         const apiKeyEl = document.getElementById('gw-llm-api-key');
         const endpointEl = document.getElementById('gw-llm-endpoint');
         const connectBtn = document.getElementById('gw-llm-oauth-connect-btn');
         const importBtn = document.getElementById('gw-llm-oauth-import-btn');
         const connectLabel = document.getElementById('gw-llm-oauth-connect-label');
         const importLabel = document.getElementById('gw-llm-oauth-import-label');
-        const normalized = this._deriveGatewayAuthMode({
-            requestedMode: mode || (authModeEl || {}).value,
-            apiKey: apiKeyEl ? apiKeyEl.value : '',
-            endpoint: endpointEl ? endpointEl.value : '',
-        });
-        const isOAuth = normalized === 'openai_oauth';
-        const provider = this._normalizeGatewayAuthProvider((authProviderEl || {}).value || 'codex');
-        const meta = this._gatewayOAuthProviderMeta(provider);
-        const isGeminiCli = isOAuth && provider === 'gemini_cli';
+        const normalized = this._deriveGatewayAuthMode({ requestedMode: mode || (authModeEl || {}).value });
+        const isOAuth = normalized === 'oauth';
+        const isCustom = normalized === 'custom';
+        const authProvider = this._normalizeOAuthProvider((authProviderEl || {}).value || 'codex');
+        const provider = this._normalizeApiProvider((providerEl || {}).value || '', (modelEl || {}).value || '');
+        const meta = this._gatewayOAuthProviderMeta(authProvider);
+        const isGeminiCli = isOAuth && authProvider === 'gemini_cli';
         const setVisible = (id, visible) => {
             const el = document.getElementById(id);
             if (el) el.style.display = visible ? '' : 'none';
         };
 
         if (authModeEl) authModeEl.value = normalized;
+        if (providerEl) {
+            providerEl.value = provider;
+            providerEl.disabled = isOAuth;
+        }
         if (authProviderEl) {
-            authProviderEl.value = provider;
+            authProviderEl.value = authProvider;
             authProviderEl.disabled = !isOAuth;
         }
         if (apiKeyEl) apiKeyEl.disabled = isOAuth;
-        if (endpointEl) endpointEl.disabled = isOAuth;
+        if (endpointEl) {
+            endpointEl.disabled = !isCustom;
+            if (isOAuth) {
+                endpointEl.value = meta.apiBase || endpointEl.value;
+            } else if (!isCustom) {
+                endpointEl.value = this._getApiProviderMeta(provider).api_base || endpointEl.value;
+            } else if (!endpointEl.value) {
+                endpointEl.value = this._getApiProviderMeta(provider).api_base || '';
+            }
+        }
+        this._syncModelOptions(modelEl, normalized, provider, authProvider, (modelEl || {}).value || '');
         if (connectBtn) connectBtn.style.display = isOAuth && meta.supportsBrowserLogin ? '' : 'none';
         if (importBtn) importBtn.style.display = isOAuth && meta.supportsImport ? '' : 'none';
         if (connectLabel) connectLabel.textContent = this._formatTemplate(this.t('gateway.oauthConnectWith'), { provider: meta.label });
         if (importLabel) importLabel.textContent = this._formatTemplate(this.t('gateway.oauthImportFrom'), { provider: meta.label });
 
+        setVisible('gw-llm-provider-group', !isOAuth);
         setVisible('gw-llm-oauth-provider-group', isOAuth);
         setVisible('gw-llm-api-key-group', !isOAuth);
-        setVisible('gw-llm-endpoint-group', !isOAuth);
+        setVisible('gw-llm-endpoint-group', isCustom);
         setVisible('gw-llm-oauth-group', isOAuth);
         setVisible('gw-gemini-warning', isGeminiCli);
     },
@@ -2061,6 +2232,7 @@ Object.assign(SingleCellAnalysis.prototype, {
         const gi = (id, fallback) => { const v = parseInt(gv(id), 10); return isNaN(v) ? fallback : v; };
         return {
             model: gv('gw-llm-model'),
+            provider: this._normalizeApiProvider(gv('gw-llm-provider'), gv('gw-llm-model')),
             endpoint: gv('gw-llm-endpoint') || null,
             temperature: gn('gw-llm-temperature', 0.3),
             top_p: gn('gw-llm-top-p', 1),
@@ -2074,6 +2246,7 @@ Object.assign(SingleCellAnalysis.prototype, {
         const apiKey = (document.getElementById('gw-llm-api-key') || {}).value || '';
         const endpoint = (document.getElementById('gw-llm-endpoint') || {}).value || '';
         const requestedMode = (document.getElementById('gw-llm-auth-mode') || {}).value || '';
+        const provider = this._normalizeApiProvider((document.getElementById('gw-llm-provider') || {}).value || '', (document.getElementById('gw-llm-model') || {}).value || '');
         const authProvider = this._normalizeGatewayAuthProvider((document.getElementById('gw-llm-oauth-provider') || {}).value || 'codex');
         const authMode = this._deriveGatewayAuthMode({ requestedMode, apiKey, endpoint });
         const resultEl = document.getElementById('gw-llm-save-result');
@@ -2087,6 +2260,8 @@ Object.assign(SingleCellAnalysis.prototype, {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 api_key: apiKey || undefined,
+                model: (document.getElementById('gw-llm-model') || {}).value || undefined,
+                provider: provider,
                 endpoint: endpoint || undefined,
                 auth_mode: authMode,
                 auth_provider: authProvider,
@@ -2119,6 +2294,7 @@ Object.assign(SingleCellAnalysis.prototype, {
         const authMode = this._deriveGatewayAuthMode({ requestedMode, apiKey, endpoint: llmVals.endpoint });
         const cfg = Object.assign({}, this._gwConfig || {}, llmVals);
         cfg.auth_mode = authMode;
+        cfg.provider = llmVals.provider;
         cfg.auth_provider = authProvider;
         const resultEl = document.getElementById('gw-llm-save-result');
 
@@ -2155,9 +2331,17 @@ Object.assign(SingleCellAnalysis.prototype, {
                             this._applyAgentAuthModeUI(authMode);
                         }
                     }
+                    const agentProviderEl = document.getElementById('agent-provider');
+                    if (agentProviderEl) {
+                        agentProviderEl.value = llmVals.provider;
+                    }
                     const agentAuthProviderEl = document.getElementById('agent-oauth-provider');
                     if (agentAuthProviderEl) {
                         agentAuthProviderEl.value = authProvider;
+                    }
+                    const agentModelEl = document.getElementById('agent-model');
+                    if (agentModelEl) {
+                        this._syncModelOptions(agentModelEl, authMode, llmVals.provider, authProvider, llmVals.model || '');
                     }
                     if (apiKey) {
                         const agentKeyEl = document.getElementById('agent-api-key');
@@ -2185,6 +2369,8 @@ Object.assign(SingleCellAnalysis.prototype, {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     api_key: apiKey,
+                    model: llmVals.model || undefined,
+                    provider: llmVals.provider,
                     endpoint: llmVals.endpoint || undefined,
                     auth_mode: authMode,
                     auth_provider: authProvider,

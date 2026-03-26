@@ -226,16 +226,18 @@
                                 <div class="mb-2">
                                     <label class="form-label mb-1" for="agent-auth-mode" data-i18n="agent.authMode">Auth Mode</label>
                                     <select class="form-select form-select-sm" id="agent-auth-mode">
-                                        <option value="openai_api_key" data-i18n="common.authModeApiKey">API Key</option>
-                                        <option value="openai_oauth" data-i18n="common.authModeOAuth">OAuth</option>
+                                        <option value="official" data-i18n="common.authModeOfficial">Official Endpoint</option>
+                                        <option value="custom" data-i18n="common.authModeCustom">Custom Endpoint</option>
+                                        <option value="oauth" data-i18n="common.authModeOAuth">OAuth</option>
                                     </select>
+                                </div>
+                                <div class="mb-2" id="agent-provider-group">
+                                    <label class="form-label mb-1" for="agent-provider" data-i18n="agent.provider">Provider</label>
+                                    <select class="form-select form-select-sm" id="agent-provider"></select>
                                 </div>
                                 <div class="mb-2" id="agent-oauth-provider-group">
                                     <label class="form-label mb-1" for="agent-oauth-provider" data-i18n="agent.oauthProvider">OAuth Provider</label>
-                                    <select class="form-select form-select-sm" id="agent-oauth-provider">
-                                        <option value="codex" data-i18n="common.oauthProviderCodex">Codex</option>
-                                        <option value="gemini_cli" data-i18n="common.oauthProviderGeminiCli">Gemini CLI</option>
-                                    </select>
+                                    <select class="form-select form-select-sm" id="agent-oauth-provider"></select>
                                 </div>
                                 <div class="mb-2" id="agent-api-base-group">
                                     <label class="form-label mb-1" for="agent-api-base" data-i18n="agent.apiBase">API Base URL</label>
@@ -251,7 +253,7 @@
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label mb-1" for="agent-model" data-i18n="agent.model">Model</label>
-                                    <input type="text" class="form-control form-control-sm" id="agent-model" placeholder="Model name" data-i18n-placeholder="agent.modelPlaceholder" value="gpt-5">
+                                    <select class="form-select form-select-sm" id="agent-model"></select>
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label mb-1" for="agent-temperature" data-i18n="agent.temperature">Temperature</label>
@@ -1870,21 +1872,23 @@
                                 <div class="row g-2">
                                     <div class="col-md-3">
                                         <label class="form-label small fw-semibold mb-1" data-i18n="gateway.model">Model</label>
-                                        <input type="text" id="gw-llm-model" class="form-control form-control-sm" placeholder="gpt-4o, claude-sonnet-4-6...">
+                                        <select id="gw-llm-model" class="form-select form-select-sm"></select>
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label small fw-semibold mb-1" for="gw-llm-auth-mode" data-i18n="gateway.authMode">Auth Mode</label>
                                         <select id="gw-llm-auth-mode" class="form-select form-select-sm">
-                                            <option value="openai_api_key" data-i18n="common.authModeApiKey">API Key</option>
-                                            <option value="openai_oauth" data-i18n="common.authModeOAuth">OAuth</option>
+                                            <option value="official" data-i18n="common.authModeOfficial">Official Endpoint</option>
+                                            <option value="custom" data-i18n="common.authModeCustom">Custom Endpoint</option>
+                                            <option value="oauth" data-i18n="common.authModeOAuth">OAuth</option>
                                         </select>
+                                    </div>
+                                    <div class="col-md-2" id="gw-llm-provider-group">
+                                        <label class="form-label small fw-semibold mb-1" for="gw-llm-provider" data-i18n="gateway.provider">Provider</label>
+                                        <select id="gw-llm-provider" class="form-select form-select-sm"></select>
                                     </div>
                                     <div class="col-md-2" id="gw-llm-oauth-provider-group">
                                         <label class="form-label small fw-semibold mb-1" for="gw-llm-oauth-provider" data-i18n="gateway.oauthProvider">OAuth Provider</label>
-                                        <select id="gw-llm-oauth-provider" class="form-select form-select-sm">
-                                            <option value="codex" data-i18n="common.oauthProviderCodex">Codex</option>
-                                            <option value="gemini_cli" data-i18n="common.oauthProviderGeminiCli">Gemini CLI</option>
-                                        </select>
+                                        <select id="gw-llm-oauth-provider" class="form-select form-select-sm"></select>
                                     </div>
                                     <div class="col-md-2" id="gw-llm-api-key-group">
                                         <label class="form-label small fw-semibold mb-1"><span data-i18n="gateway.apiKey">API Key</span>

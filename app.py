@@ -722,7 +722,7 @@ try:
 
             # Apply OAuth redirect — same logic as get_agent_instance() so that
             # channel agents (Telegram, Discord, …) also use the Codex backend.
-            if self._auth_mode == "openai_oauth" and self._auth_provider == "gemini_cli":
+            if self._auth_mode == "oauth" and self._auth_provider == "gemini_cli":
                 kwargs["auth_mode"] = "gemini_cli_oauth"
                 kwargs["auth_provider"] = self._auth_provider
                 kwargs["auth_file"] = str(Path.home() / ".ovjarvis" / "auth.json")
@@ -4103,11 +4103,7 @@ def runtime_config():
         'brand': {
             'product_name': 'OmicClaw' if is_omicclaw else 'OmicVerse',
             'tag': 'OmicClaw' if is_omicclaw else 'OmicVerse',
-            'logo_url': (
-                'https://raw.githubusercontent.com/Starlitnightly/ImageStore/main/omicverse_img/'
-                'Gemini_Generated_Image_xefpyexefpyexefp.png'
-                if is_omicclaw else 'static/picture/logo.png'
-            ),
+            'logo_url': 'static/picture/logo-omicclaw.png' if is_omicclaw else 'static/picture/logo.png',
         },
     })
 

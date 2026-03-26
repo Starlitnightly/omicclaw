@@ -22,6 +22,14 @@ from omicverse.utils.harness.runtime_state import runtime_state
 from omicverse.utils.harness.trace_store import RunTraceStore
 
 from .agent_session_service import ApprovalRequest, QuestionRequest, session_manager
+from .llm_catalog import (
+    default_endpoint_for_oauth_provider,
+    default_endpoint_for_provider,
+    find_provider_for_model,
+    normalize_api_provider,
+    normalize_auth_mode as normalize_catalog_auth_mode,
+    normalize_oauth_provider,
+)
 
 
 logger = logging.getLogger("omicclaw.agent")
@@ -114,12 +122,7 @@ def _looks_like_oauth_jwt(token: str) -> bool:
 
 
 def _normalize_auth_mode(auth_mode: Optional[str]) -> str:
-    mode = str(auth_mode or "").strip().lower()
-    if mode == "openai_codex":
-        return "openai_oauth"
-    if mode == "saved_api_key":
-        return "openai_api_key"
-    return mode
+    return normalize_catalog_auth_mode(auth_mode)
 
 
 def _requested_auth_mode(config: Optional[dict[str, Any]]) -> str:
@@ -132,15 +135,22 @@ def _requested_auth_mode(config: Optional[dict[str, Any]]) -> str:
 
 def _requested_auth_provider(config: Optional[dict[str, Any]]) -> str:
     if not isinstance(config, dict):
-        return "codex"
-    provider = str(
+        return normalize_oauth_provider(None)
+    return normalize_oauth_provider(
         config.get("authProvider") or config.get("auth_provider") or "codex"
-    ).strip().lower()
-    if provider in {"", "openai", "openai_codex"}:
-        return "codex"
-    if provider not in {"codex", "gemini_cli"}:
-        return "codex"
-    return provider
+    )
+
+
+def _requested_provider(config: Optional[dict[str, Any]]) -> str:
+    if not isinstance(config, dict):
+        return normalize_api_provider(None)
+    requested = config.get("provider")
+    model = config.get("model")
+    if requested in (None, "") and model:
+        inferred = find_provider_for_model(model)
+        if inferred:
+            return normalize_api_provider(inferred)
+    return normalize_api_provider(requested)
 
 
 def _should_use_openai_oauth(
@@ -158,11 +168,11 @@ def _should_use_openai_oauth(
     saved_account_id = str(tokens.get("account_id") or "").strip()
     explicit_api_key = str(api_key or "").strip()
 
-    if normalized_auth_mode == "openai_oauth" and normalized_auth_provider != "codex":
+    if normalized_auth_mode == "oauth" and normalized_auth_provider != "codex":
         return False
-    if normalized_auth_mode == "openai_oauth":
+    if normalized_auth_mode == "oauth":
         return True
-    if normalized_auth_mode == "openai_api_key":
+    if normalized_auth_mode in {"official", "custom"}:
         return "chatgpt.com" in endpoint_text or _looks_like_oauth_jwt(explicit_api_key)
     if "chatgpt.com" in endpoint_text:
         return True
@@ -193,9 +203,14 @@ def get_agent_instance(config):
 
     model = config.get('model') or 'gpt-5'
     api_key = config.get('apiKey') or ''
-    endpoint = config.get('apiBase') or None
+    requested_provider = _requested_provider(config)
     auth_mode = _requested_auth_mode(config)
     auth_provider = _requested_auth_provider(config)
+    endpoint = config.get('apiBase') or None
+    if auth_mode == 'oauth':
+        endpoint = default_endpoint_for_oauth_provider(auth_provider)
+    elif auth_mode == 'official':
+        endpoint = default_endpoint_for_provider(requested_provider)
     agent_kwargs = {
         'model': model,
         'endpoint': endpoint or None,
@@ -203,7 +218,7 @@ def get_agent_instance(config):
     }
     auth_signature = ''
 
-    if auth_mode == 'openai_oauth' and auth_provider == 'gemini_cli':
+    if auth_mode == 'oauth' and auth_provider == 'gemini_cli':
         agent_kwargs['auth_mode'] = 'gemini_cli_oauth'
         agent_kwargs['auth_provider'] = auth_provider
         agent_kwargs['auth_file'] = str(Path.home() / ".ovjarvis" / "auth.json")
@@ -246,6 +261,7 @@ def get_agent_instance(config):
         'endpoint': agent_kwargs.get('endpoint', endpoint),
         'auth_mode': agent_kwargs.get('auth_mode', 'api_key'),
         'auth_provider': auth_provider,
+        'provider': requested_provider,
     }, sort_keys=True)
 
     # Only recreate agent if configuration changed

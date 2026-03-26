@@ -28,6 +28,18 @@ from typing import Optional
 import requests
 from flask import Blueprint, current_app, has_app_context, jsonify, request
 
+from services.llm_catalog import (
+    catalog_for_browser,
+    default_endpoint_for_oauth_provider,
+    default_endpoint_for_provider,
+    default_model_for_oauth_provider,
+    default_model_for_provider,
+    find_provider_for_model,
+    normalize_api_provider,
+    normalize_auth_mode as normalize_catalog_auth_mode,
+    normalize_oauth_provider,
+)
+
 channel_config_bp = Blueprint("channel_config", __name__)
 
 # --------------------------------------------------------------------------
@@ -125,7 +137,8 @@ def _find_omicverse_cmd() -> list[str]:
 DEFAULT_CONFIG: dict = {
     "channel": None,
     "model": "gpt-4o",
-    "auth_mode": "openai_api_key",
+    "auth_mode": "official",
+    "provider": "openai",
     "auth_provider": "codex",
     "endpoint": None,
     "session_dir": None,
@@ -172,8 +185,8 @@ DEFAULT_CONFIG: dict = {
 }
 
 _OAUTH_PROVIDER_LABELS: dict[str, str] = {
-    "codex": "Codex",
-    "gemini_cli": "Gemini CLI",
+    item["id"]: item["label"]
+    for item in (catalog_for_browser().get("oauth_providers") or [])
 }
 
 # --------------------------------------------------------------------------
@@ -290,23 +303,56 @@ def _looks_like_oauth_jwt(token: str) -> bool:
 
 
 def _normalize_auth_mode(value: Optional[str]) -> str:
-    mode = str(value or "").strip().lower()
-    if mode == "openai_codex":
-        return "openai_oauth"
-    if mode == "saved_api_key":
-        return "openai_api_key"
-    return mode or "openai_api_key"
+    return normalize_catalog_auth_mode(value)
+
+
+def _normalize_api_provider(value: Optional[str], *, model: Optional[str] = None) -> str:
+    normalized = normalize_api_provider(value)
+    if value in (None, "") and model:
+        inferred = find_provider_for_model(model)
+        if inferred:
+            return normalize_api_provider(inferred)
+    return normalized
 
 
 def _normalize_auth_provider(value: Optional[str]) -> str:
-    provider = str(value or "").strip().lower()
-    if provider in {"", "openai", "openai_codex"}:
-        return "codex"
-    return provider if provider in _OAUTH_PROVIDER_LABELS else "codex"
+    return normalize_oauth_provider(value)
 
 
 def _oauth_provider_label(provider: Optional[str]) -> str:
     return _OAUTH_PROVIDER_LABELS.get(_normalize_auth_provider(provider), "OAuth")
+
+
+def _resolve_llm_config(cfg: Optional[dict], overrides: Optional[dict] = None) -> dict:
+    base = dict(cfg or {})
+    incoming = dict(overrides or {})
+    merged = {**base, **incoming}
+    auth_mode = _normalize_auth_mode(merged.get("auth_mode"))
+    auth_provider = _normalize_auth_provider(merged.get("auth_provider"))
+    provider = _normalize_api_provider(merged.get("provider"), model=merged.get("model"))
+    model = str(merged.get("model") or "").strip()
+    endpoint = str(merged.get("endpoint") or "").strip()
+
+    if auth_mode == "oauth":
+        if not model:
+            model = default_model_for_oauth_provider(auth_provider)
+        endpoint = default_endpoint_for_oauth_provider(auth_provider)
+    else:
+        if not model:
+            model = default_model_for_provider(provider)
+        if auth_mode == "official":
+            endpoint = default_endpoint_for_provider(provider)
+        elif not endpoint:
+            endpoint = default_endpoint_for_provider(provider)
+
+    return {
+        **merged,
+        "auth_mode": auth_mode,
+        "provider": provider,
+        "auth_provider": auth_provider,
+        "model": model,
+        "endpoint": endpoint or None,
+    }
 
 
 def _oauth_flow_state(provider: Optional[str]) -> dict:
@@ -632,19 +678,20 @@ def _build_start_command(channel: str, cfg: dict, api_key: str) -> list[str]:
     # new browser window. The gateway UI's fallback subprocess path should only
     # launch the channel backend itself.
     cmd = _find_omicverse_cmd() + ["jarvis", "--channel", channel]
-    auth_mode = _normalize_auth_mode(cfg.get("auth_mode"))
+    resolved = _resolve_llm_config(cfg)
+    auth_mode = resolved.get("auth_mode")
     auth_provider = _normalize_auth_provider(cfg.get("auth_provider"))
 
-    if cfg.get("model"):
-        cmd += ["--model", cfg["model"]]
-    if auth_mode == "openai_oauth":
+    if resolved.get("model"):
+        cmd += ["--model", resolved["model"]]
+    if auth_mode == "oauth":
         cmd += ["--auth-mode", "gemini_cli_oauth" if auth_provider == "gemini_cli" else "openai_oauth"]
-    elif auth_mode == "openai_api_key":
+    elif auth_mode in {"official", "custom"}:
         cmd += ["--auth-mode", "openai_api_key"]
-    if api_key and auth_mode != "openai_oauth":
+    if api_key and auth_mode != "oauth":
         cmd += ["--api-key", api_key]
-    if cfg.get("endpoint"):
-        cmd += ["--endpoint", cfg["endpoint"]]
+    if resolved.get("endpoint"):
+        cmd += ["--endpoint", resolved["endpoint"]]
 
     if channel == "telegram":
         token = cfg.get("telegram", {}).get("token") or ""
@@ -891,7 +938,7 @@ def _get_log_buffer(channel: str) -> str:
 
 # --------------------------------------------------------------------------
 # Shared LLM config fields (kept in one place to avoid duplication across routes)
-_LLM_FIELDS = ("model", "endpoint", "auth_mode", "auth_provider", "temperature", "top_p", "max_tokens", "timeout", "system_prompt")
+_LLM_FIELDS = ("model", "endpoint", "auth_mode", "provider", "auth_provider", "temperature", "top_p", "max_tokens", "timeout", "system_prompt")
 _LLM_NULLABLE = frozenset({"model", "endpoint"})  # empty string → None
 
 # Routes
@@ -901,13 +948,14 @@ _LLM_NULLABLE = frozenset({"model", "endpoint"})  # empty string → None
 def get_llm_config():
     """Return the shared LLM config (api_key unmasked) for the Agent panel."""
     # _read_config() already deep-merges DEFAULT_CONFIG, so all fields are present.
-    cfg = _read_config()
+    cfg = _resolve_llm_config(_read_config())
     api_key = _read_api_key()
     return jsonify(
         {field: cfg.get(field) for field in _LLM_FIELDS}
         | {
             "api_key": api_key,
             "auth_mode": _normalize_auth_mode(cfg.get("auth_mode")),
+            "provider": _normalize_api_provider(cfg.get("provider"), model=cfg.get("model")),
             "auth_provider": _normalize_auth_provider(cfg.get("auth_provider")),
             "codex_linked": bool(_read_codex_access_token()),
             "codex_account_id": _read_codex_account_id(),
@@ -915,6 +963,7 @@ def get_llm_config():
                 provider: _oauth_status_payload(provider)
                 for provider in _OAUTH_PROVIDER_LABELS
             },
+            "llm_catalog": catalog_for_browser(),
         }
     )
 
@@ -932,9 +981,10 @@ def save_llm_config():
     explicit_api_key = str(body.get("api_key", "") or "").strip()
     if "auth_mode" not in body:
         if cfg.get("endpoint") and "chatgpt.com" in str(cfg.get("endpoint")):
-            cfg["auth_mode"] = "openai_oauth"
+            cfg["auth_mode"] = "oauth"
         elif explicit_api_key and not _looks_masked(explicit_api_key):
-            cfg["auth_mode"] = "openai_oauth" if _looks_like_oauth_jwt(explicit_api_key) else "openai_api_key"
+            cfg["auth_mode"] = "oauth" if _looks_like_oauth_jwt(explicit_api_key) else "official"
+    cfg = _resolve_llm_config(cfg)
     try:
         _write_config(cfg)
         if explicit_api_key and not _looks_masked(explicit_api_key):
@@ -950,15 +1000,12 @@ def test_llm_config():
     from omicverse.jarvis.openai_oauth import token_expired  # type: ignore
 
     body = request.get_json(silent=True) or {}
-    cfg = _read_config()
-    endpoint = str(body.get("endpoint") or cfg.get("endpoint") or "").strip()
-    if not endpoint:
-        endpoint = "https://api.openai.com/v1"
-    endpoint = endpoint.rstrip("/")
-    auth_mode = _normalize_auth_mode(body.get("auth_mode") or cfg.get("auth_mode"))
-    auth_provider = _normalize_auth_provider(body.get("auth_provider") or cfg.get("auth_provider"))
+    cfg = _resolve_llm_config(_read_config(), body)
+    endpoint = str(cfg.get("endpoint") or "").strip().rstrip("/")
+    auth_mode = _normalize_auth_mode(cfg.get("auth_mode"))
+    auth_provider = _normalize_auth_provider(cfg.get("auth_provider"))
     explicit_api_key = str(body.get("api_key") or "").strip()
-    if auth_mode == "openai_oauth":
+    if auth_mode == "oauth":
         if auth_provider == "gemini_cli":
             try:
                 from omicverse.jarvis.gemini_cli_oauth import GeminiCliOAuthError, GeminiCliOAuthManager  # type: ignore
@@ -999,20 +1046,20 @@ def test_llm_config():
     if not api_key:
         return jsonify({"ok": False, "error": "No API key configured"})
     try:
-        resp = requests.get(
-            f"{endpoint}/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=10,
+        from omicverse.utils.agent_backend import OmicVerseLLMBackend  # type: ignore
+
+        backend = OmicVerseLLMBackend(
+            system_prompt="Return OK.",
+            model=str(cfg.get("model") or default_model_for_provider(cfg.get("provider"))),
+            api_key=api_key,
+            endpoint=endpoint,
+            max_tokens=8,
+            temperature=0.0,
         )
-        if resp.ok:
+        result = backend._run_sync("Return the single token OK.")  # noqa: SLF001
+        if str(result or "").strip():
             return jsonify({"ok": True})
-        try:
-            detail = resp.json().get("error", {}).get("message") or f"HTTP {resp.status_code}"
-        except Exception:
-            detail = f"HTTP {resp.status_code}"
-        return jsonify({"ok": False, "error": detail})
-    except requests.exceptions.ConnectionError as exc:
-        return jsonify({"ok": False, "error": f"Connection error: {exc}"})
+        return jsonify({"ok": False, "error": "Empty response from provider"})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)})
 
@@ -1123,7 +1170,7 @@ def codex_oauth_import():
 
 @channel_config_bp.route("/config", methods=["GET"])
 def get_config():
-    cfg = _read_config()
+    cfg = _resolve_llm_config(_read_config())
     api_key = _read_api_key()
 
     # For secret fields: return empty string (not the masked value) so the
@@ -1155,6 +1202,7 @@ def get_config():
             provider: _oauth_status_payload(provider)
             for provider in _OAUTH_PROVIDER_LABELS
         },
+        "llm_catalog": catalog_for_browser(),
         "processes": list_channel_states(),
         "config_path": str(_config_path()),
     })
@@ -1168,6 +1216,7 @@ def save_config():
     if not isinstance(cfg, dict):
         return jsonify({"error": "config must be an object"}), 400
     try:
+        cfg = _resolve_llm_config(cfg)
         _write_config(cfg)
         if api_key:
             _write_api_key(api_key)
